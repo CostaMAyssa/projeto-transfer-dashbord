@@ -2,548 +2,317 @@
 
 import { useState } from "react"
 import { Plus, Edit, Trash2, Save, X, DollarSign } from "lucide-react"
-
-// Mock data for pricing
-const mockPricing = [
-  {
-    id: 1,
-    route: "JFK Airport to Manhattan",
-    vehicleType: "Business Class",
-    basePrice: 174,
-    distancePrice: 2.5,
-    waitingPrice: 0.75,
-    nightSurcharge: 20,
-    holidaySurcharge: 30,
-  },
-  {
-    id: 2,
-    route: "JFK Airport to Manhattan",
-    vehicleType: "First Class",
-    basePrice: 220,
-    distancePrice: 3.0,
-    waitingPrice: 1.0,
-    nightSurcharge: 25,
-    holidaySurcharge: 40,
-  },
-  {
-    id: 3,
-    route: "JFK Airport to Manhattan",
-    vehicleType: "Business Van/SUV",
-    basePrice: 250,
-    distancePrice: 3.5,
-    waitingPrice: 1.25,
-    nightSurcharge: 30,
-    holidaySurcharge: 50,
-  },
-  {
-    id: 4,
-    route: "LaGuardia Airport to Manhattan",
-    vehicleType: "Business Class",
-    basePrice: 150,
-    distancePrice: 2.5,
-    waitingPrice: 0.75,
-    nightSurcharge: 20,
-    holidaySurcharge: 30,
-  },
-  {
-    id: 5,
-    route: "LaGuardia Airport to Manhattan",
-    vehicleType: "First Class",
-    basePrice: 190,
-    distancePrice: 3.0,
-    waitingPrice: 1.0,
-    nightSurcharge: 25,
-    holidaySurcharge: 40,
-  },
-  {
-    id: 6,
-    route: "LaGuardia Airport to Manhattan",
-    vehicleType: "Business Van/SUV",
-    basePrice: 220,
-    distancePrice: 3.5,
-    waitingPrice: 1.25,
-    nightSurcharge: 30,
-    holidaySurcharge: 50,
-  },
-  {
-    id: 7,
-    route: "Newark Airport to Manhattan",
-    vehicleType: "Business Class",
-    basePrice: 180,
-    distancePrice: 2.5,
-    waitingPrice: 0.75,
-    nightSurcharge: 20,
-    holidaySurcharge: 30,
-  },
-  {
-    id: 8,
-    route: "Newark Airport to Manhattan",
-    vehicleType: "First Class",
-    basePrice: 230,
-    distancePrice: 3.0,
-    waitingPrice: 1.0,
-    nightSurcharge: 25,
-    holidaySurcharge: 40,
-  },
-  {
-    id: 9,
-    route: "Newark Airport to Manhattan",
-    vehicleType: "Business Van/SUV",
-    basePrice: 260,
-    distancePrice: 3.5,
-    waitingPrice: 1.25,
-    nightSurcharge: 30,
-    holidaySurcharge: 50,
-  },
-]
-
-// Mock data for extra services
-const mockExtraServices = [
-  {
-    id: 1,
-    name: "Child Seat",
-    price: 12,
-    description: "Suitable for toddlers weighing 0-18 kg (approx 0 to 4 years).",
-  },
-  {
-    id: 2,
-    name: "Booster Seat",
-    price: 12,
-    description: "Suitable for children weighing 15-36 kg (approx 4 to 10 years).",
-  },
-  {
-    id: 3,
-    name: "Vodka Bottle",
-    price: 39,
-    description: "Absolut Vodka 0.7l Bottle",
-  },
-  {
-    id: 4,
-    name: "Bouquet of Flowers",
-    price: 75,
-    description: "A bouquet of seasonal flowers prepared by a local florist",
-  },
-  {
-    id: 5,
-    name: "Alcohol Package",
-    price: 120,
-    description: "Premium selection of spirits and mixers",
-  },
-  {
-    id: 6,
-    name: "Airport Assistance",
-    price: 150,
-    description: "VIP airport assistance and fast-track service",
-  },
-  {
-    id: 7,
-    name: "Bodyguard Service",
-    price: 250,
-    description: "Professional security personnel for your journey",
-  },
-]
+import { usePricingRules, createPricingRule, updatePricingRule, deletePricingRule } from "@/hooks/usePricing"
+import { useExtras, createExtra, updateExtra, deleteExtra } from "@/hooks/useExtras"
+import { mutate } from "swr"
 
 export default function PricingPage() {
-  const [pricing, setPricing] = useState(mockPricing)
-  const [extraServices, setExtraServices] = useState(mockExtraServices)
-  const [editingPriceId, setEditingPriceId] = useState<number | null>(null)
-  const [editingServiceId, setEditingServiceId] = useState<number | null>(null)
+  const { data: pricing, error: pricingError, isLoading: pricingLoading } = usePricingRules()
+  const { data: extraServices, error: extrasError, isLoading: extrasLoading } = useExtras()
+  
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null)
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null)
   const [showAddPriceModal, setShowAddPriceModal] = useState(false)
   const [showAddServiceModal, setShowAddServiceModal] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  
   const [editedPrice, setEditedPrice] = useState({
-    route: "",
-    vehicleType: "",
-    basePrice: 0,
-    distancePrice: 0,
-    waitingPrice: 0,
-    nightSurcharge: 0,
-    holidaySurcharge: 0,
+    origin_city: "",
+    destination_city: "",
+    vehicle_type: "",
+    base_price: 0,
+    price_per_km: 0,
+    currency: "GBP",
   })
+  
   const [editedService, setEditedService] = useState({
     name: "",
     price: 0,
     description: "",
   })
 
-  const handleEditPrice = (price) => {
+  if (pricingLoading || extrasLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-[#E95440] border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">Carregando preços...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (pricingError || extrasError) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Erro ao carregar dados</p>
+          <button 
+            onClick={() => {
+              mutate('pricing_rules')
+              mutate('extras')
+            }}
+            className="btn-primary bg-secondary"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const handleEditPrice = (price: any) => {
     setEditingPriceId(price.id)
     setEditedPrice({
-      route: price.route,
-      vehicleType: price.vehicleType,
-      basePrice: price.basePrice,
-      distancePrice: price.distancePrice,
-      waitingPrice: price.waitingPrice,
-      nightSurcharge: price.nightSurcharge,
-      holidaySurcharge: price.holidaySurcharge,
+      origin_city: price.origin_city || "",
+      destination_city: price.destination_city || "",
+      vehicle_type: price.vehicle_type || "",
+      base_price: price.base_price,
+      price_per_km: price.price_per_km || 0,
+      currency: price.currency,
     })
   }
 
-  const handleSavePrice = (id) => {
-    setPricing(pricing.map((price) => (price.id === id ? { ...price, ...editedPrice } : price)))
-    setEditingPriceId(null)
+  const handleSavePrice = async (id: string) => {
+    setIsSubmitting(true)
+    try {
+      await updatePricingRule(id, editedPrice)
+      mutate('pricing_rules')
+      setEditingPriceId(null)
+    } catch (error) {
+      console.error('Erro ao atualizar preço:', error)
+      alert('Erro ao atualizar preço')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
-  const handleEditService = (service) => {
+  const handleEditService = (service: any) => {
     setEditingServiceId(service.id)
     setEditedService({
       name: service.name,
       price: service.price,
-      description: service.description,
+      description: service.description || "",
     })
   }
 
-  const handleSaveService = (id) => {
-    setExtraServices(extraServices.map((service) => (service.id === id ? { ...service, ...editedService } : service)))
-    setEditingServiceId(null)
-  }
-
-  const handleDeletePrice = (id) => {
-    setPricing(pricing.filter((price) => price.id !== id))
-  }
-
-  const handleDeleteService = (id) => {
-    setExtraServices(extraServices.filter((service) => service.id !== id))
-  }
-
-  const handleAddPrice = () => {
-    const newPrice = {
-      id: pricing.length + 1,
-      ...editedPrice,
+  const handleSaveService = async (id: string) => {
+    setIsSubmitting(true)
+    try {
+      await updateExtra(id, editedService)
+      mutate('extras')
+      setEditingServiceId(null)
+    } catch (error) {
+      console.error('Erro ao atualizar serviço:', error)
+      alert('Erro ao atualizar serviço')
+    } finally {
+      setIsSubmitting(false)
     }
-    setPricing([...pricing, newPrice])
-    setShowAddPriceModal(false)
-    setEditedPrice({
-      route: "",
-      vehicleType: "",
-      basePrice: 0,
-      distancePrice: 0,
-      waitingPrice: 0,
-      nightSurcharge: 0,
-      holidaySurcharge: 0,
-    })
   }
 
-  const handleAddService = () => {
-    const newService = {
-      id: extraServices.length + 1,
-      ...editedService,
+  const handleDeletePrice = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este preço?')) {
+      try {
+        await deletePricingRule(id)
+        mutate('pricing_rules')
+      } catch (error) {
+        console.error('Erro ao deletar preço:', error)
+        alert('Erro ao deletar preço')
+      }
     }
-    setExtraServices([...extraServices, newService])
-    setShowAddServiceModal(false)
-    setEditedService({
-      name: "",
-      price: 0,
-      description: "",
-    })
+  }
+
+  const handleDeleteService = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este serviço?')) {
+      try {
+        await deleteExtra(id)
+        mutate('extras')
+      } catch (error) {
+        console.error('Erro ao deletar serviço:', error)
+        alert('Erro ao deletar serviço')
+      }
+    }
+  }
+
+  const handleAddPrice = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      await createPricingRule(editedPrice)
+      mutate('pricing_rules')
+      setShowAddPriceModal(false)
+      setEditedPrice({
+        origin_city: "",
+        destination_city: "",
+        vehicle_type: "",
+        base_price: 0,
+        price_per_km: 0,
+        currency: "GBP",
+      })
+    } catch (error) {
+      console.error('Erro ao criar preço:', error)
+      alert('Erro ao criar preço')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleAddService = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      await createExtra(editedService)
+      mutate('extras')
+      setShowAddServiceModal(false)
+      setEditedService({
+        name: "",
+        price: 0,
+        description: "",
+      })
+    } catch (error) {
+      console.error('Erro ao criar serviço:', error)
+      alert('Erro ao criar serviço')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-medium">Pricing Management</h1>
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-medium">Preços e Serviços</h1>
       </div>
 
-      {/* Route Pricing */}
-      <div className="bg-white rounded-lg shadow mb-8">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Route Pricing</h2>
-          <button
-            className="bg-[#E95440] hover:bg-[#d64a36] text-white px-4 py-2 rounded-lg flex items-center transition-colors"
-            onClick={() => setShowAddPriceModal(true)}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Route Price
-          </button>
+      {/* Pricing Rules Section */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-medium">Regras de Preço</h2>
+            <button
+              onClick={() => setShowAddPriceModal(true)}
+              className="btn-primary bg-secondary flex items-center text-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Preço
+            </button>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Route
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vehicle Type
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Base Price
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Per Mile
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Waiting (min)
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Night
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Holiday
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origem</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Destino</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo de Veículo</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço Base</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço/km</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {pricing.map((price) => (
-                <tr key={price.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+              {pricing?.map((price) => (
+                <tr key={price.id}>
+                  <td className="px-6 py-4">
                     {editingPriceId === price.id ? (
                       <input
                         type="text"
-                        className="w-full p-1 border rounded"
-                        value={editedPrice.route}
-                        onChange={(e) => setEditedPrice({ ...editedPrice, route: e.target.value })}
+                        className="w-full px-2 py-1 border rounded"
+                        value={editedPrice.origin_city}
+                        onChange={(e) => setEditedPrice({ ...editedPrice, origin_city: e.target.value })}
                       />
                     ) : (
-                      price.route
+                      <span className="text-sm">{price.origin_city || 'Qualquer'}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4">
+                    {editingPriceId === price.id ? (
+                      <input
+                        type="text"
+                        className="w-full px-2 py-1 border rounded"
+                        value={editedPrice.destination_city}
+                        onChange={(e) => setEditedPrice({ ...editedPrice, destination_city: e.target.value })}
+                      />
+                    ) : (
+                      <span className="text-sm">{price.destination_city || 'Qualquer'}</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
                     {editingPriceId === price.id ? (
                       <select
-                        className="w-full p-1 border rounded"
-                        value={editedPrice.vehicleType}
-                        onChange={(e) => setEditedPrice({ ...editedPrice, vehicleType: e.target.value })}
+                        className="w-full px-2 py-1 border rounded"
+                        value={editedPrice.vehicle_type}
+                        onChange={(e) => setEditedPrice({ ...editedPrice, vehicle_type: e.target.value })}
                       >
-                        <option>Business Class</option>
-                        <option>First Class</option>
-                        <option>Business Van/SUV</option>
+                        <option value="">Qualquer</option>
+                        <option value="Business Class">Business Class</option>
+                        <option value="First Class">First Class</option>
+                        <option value="Business Van/SUV">Business Van/SUV</option>
                       </select>
                     ) : (
-                      price.vehicleType
+                      <span className="text-sm">{price.vehicle_type || 'Qualquer'}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                  <td className="px-6 py-4">
                     {editingPriceId === price.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          className="w-full p-1 border rounded"
-                          value={editedPrice.basePrice}
-                          onChange={(e) =>
-                            setEditedPrice({ ...editedPrice, basePrice: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${price.basePrice}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingPriceId === price.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-full p-1 border rounded"
-                          value={editedPrice.distancePrice}
-                          onChange={(e) =>
-                            setEditedPrice({ ...editedPrice, distancePrice: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${price.distancePrice}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingPriceId === price.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="w-full p-1 border rounded"
-                          value={editedPrice.waitingPrice}
-                          onChange={(e) =>
-                            setEditedPrice({ ...editedPrice, waitingPrice: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${price.waitingPrice}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingPriceId === price.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          className="w-full p-1 border rounded"
-                          value={editedPrice.nightSurcharge}
-                          onChange={(e) =>
-                            setEditedPrice({ ...editedPrice, nightSurcharge: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${price.nightSurcharge}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingPriceId === price.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          className="w-full p-1 border rounded"
-                          value={editedPrice.holidaySurcharge}
-                          onChange={(e) =>
-                            setEditedPrice({ ...editedPrice, holidaySurcharge: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${price.holidaySurcharge}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingPriceId === price.id ? (
-                      <div className="flex space-x-2">
-                        <button
-                          className="p-1 hover:bg-green-100 rounded-full transition-colors"
-                          onClick={() => handleSavePrice(price.id)}
-                        >
-                          <Save className="h-4 w-4 text-green-600" />
-                        </button>
-                        <button className="p-1 hover:bg-red-100 rounded-full transition-colors">
-                          <X className="h-4 w-4 text-red-600" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex space-x-2">
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                          onClick={() => handleEditPrice(price)}
-                        >
-                          <Edit className="h-4 w-4 text-gray-500" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                          onClick={() => handleDeletePrice(price.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-gray-500" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Extra Services Pricing */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Extra Services Pricing</h2>
-          <button
-            className="bg-[#E95440] hover:bg-[#d64a36] text-white px-4 py-2 rounded-lg flex items-center transition-colors"
-            onClick={() => setShowAddServiceModal(true)}
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add Service
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Service Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Price
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {extraServices.map((service) => (
-                <tr key={service.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingServiceId === service.id ? (
                       <input
-                        type="text"
-                        className="w-full p-1 border rounded"
-                        value={editedService.name}
-                        onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
+                        type="number"
+                        step="0.01"
+                        className="w-full px-2 py-1 border rounded"
+                        value={editedPrice.base_price}
+                        onChange={(e) => setEditedPrice({ ...editedPrice, base_price: parseFloat(e.target.value) })}
                       />
                     ) : (
-                      service.name
+                      <span className="text-sm">{price.currency} {price.base_price.toFixed(2)}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingServiceId === service.id ? (
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="number"
-                          className="w-full p-1 border rounded"
-                          value={editedService.price}
-                          onChange={(e) =>
-                            setEditedService({ ...editedService, price: Number.parseFloat(e.target.value) })
-                          }
-                        />
-                      </div>
-                    ) : (
-                      `$${service.price}`
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-700">
-                    {editingServiceId === service.id ? (
-                      <textarea
-                        className="w-full p-1 border rounded"
-                        value={editedService.description}
-                        onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
+                  <td className="px-6 py-4">
+                    {editingPriceId === price.id ? (
+                      <input
+                        type="number"
+                        step="0.01"
+                        className="w-full px-2 py-1 border rounded"
+                        value={editedPrice.price_per_km}
+                        onChange={(e) => setEditedPrice({ ...editedPrice, price_per_km: parseFloat(e.target.value) })}
                       />
                     ) : (
-                      service.description
+                      <span className="text-sm">{price.currency} {(price.price_per_km || 0).toFixed(2)}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                    {editingServiceId === service.id ? (
-                      <div className="flex space-x-2">
-                        <button
-                          className="p-1 hover:bg-green-100 rounded-full transition-colors"
-                          onClick={() => handleSaveService(service.id)}
-                        >
-                          <Save className="h-4 w-4 text-green-600" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-red-100 rounded-full transition-colors"
-                          onClick={() => setEditingServiceId(null)}
-                        >
-                          <X className="h-4 w-4 text-red-600" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex space-x-2">
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                          onClick={() => handleEditService(service)}
-                        >
-                          <Edit className="h-4 w-4 text-gray-500" />
-                        </button>
-                        <button
-                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                          onClick={() => handleDeleteService(service.id)}
-                        >
-                          <Trash2 className="h-4 w-4 text-gray-500" />
-                        </button>
-                      </div>
-                    )}
+                  <td className="px-6 py-4">
+                    <div className="flex items-center space-x-2">
+                      {editingPriceId === price.id ? (
+                        <>
+                          <button
+                            onClick={() => handleSavePrice(price.id)}
+                            disabled={isSubmitting}
+                            className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                          >
+                            <Save className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setEditingPriceId(null)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleEditPrice(price)}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePrice(price.id)}
+                            className="text-red-600 hover:text-red-800"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -552,119 +321,178 @@ export default function PricingPage() {
         </div>
       </div>
 
-      {/* Add Route Price Modal */}
-      {showAddPriceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-semibold">Add New Route Price</h2>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Route</label>
+      {/* Extra Services Section */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-medium">Serviços Extras</h2>
+            <button
+              onClick={() => setShowAddServiceModal(true)}
+              className="btn-primary bg-secondary flex items-center text-sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Serviço
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
+          {extraServices?.map((service) => (
+            <div key={service.id} className="border rounded-lg p-4">
+              <div className="flex justify-between items-start mb-3">
+                {editingServiceId === service.id ? (
                   <input
                     type="text"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. JFK Airport to Manhattan"
-                    value={editedPrice.route}
-                    onChange={(e) => setEditedPrice({ ...editedPrice, route: e.target.value })}
+                    className="font-medium text-lg border-b border-gray-300 bg-transparent"
+                    value={editedService.name}
+                    onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Vehicle Type</label>
-                  <select
-                    className="w-full p-2 border rounded-md"
-                    value={editedPrice.vehicleType}
-                    onChange={(e) => setEditedPrice({ ...editedPrice, vehicleType: e.target.value })}
-                  >
-                    <option value="">Select Vehicle Type</option>
-                    <option>Business Class</option>
-                    <option>First Class</option>
-                    <option>Business Van/SUV</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Base Price ($)</label>
-                  <input
-                    type="number"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. 150"
-                    value={editedPrice.basePrice || ""}
-                    onChange={(e) => setEditedPrice({ ...editedPrice, basePrice: Number.parseFloat(e.target.value) })}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Per Mile Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. 2.50"
-                    value={editedPrice.distancePrice || ""}
-                    onChange={(e) =>
-                      setEditedPrice({ ...editedPrice, distancePrice: Number.parseFloat(e.target.value) })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Waiting Price ($/min)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. 0.75"
-                    value={editedPrice.waitingPrice || ""}
-                    onChange={(e) =>
-                      setEditedPrice({ ...editedPrice, waitingPrice: Number.parseFloat(e.target.value) })
-                    }
-                  />
+                ) : (
+                  <h3 className="font-medium text-lg">{service.name}</h3>
+                )}
+                <div className="flex items-center space-x-1">
+                  {editingServiceId === service.id ? (
+                    <>
+                      <button
+                        onClick={() => handleSaveService(service.id)}
+                        disabled={isSubmitting}
+                        className="text-green-600 hover:text-green-800 disabled:opacity-50"
+                      >
+                        <Save className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setEditingServiceId(null)}
+                        className="text-gray-600 hover:text-gray-800"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleEditService(service)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteService(service.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Night Surcharge ($)</label>
-                  <input
-                    type="number"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. 20"
-                    value={editedPrice.nightSurcharge || ""}
-                    onChange={(e) =>
-                      setEditedPrice({ ...editedPrice, nightSurcharge: Number.parseFloat(e.target.value) })
-                    }
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Holiday Surcharge ($)</label>
-                  <input
-                    type="number"
-                    className="w-full p-2 border rounded-md"
-                    placeholder="e.g. 30"
-                    value={editedPrice.holidaySurcharge || ""}
-                    onChange={(e) =>
-                      setEditedPrice({ ...editedPrice, holidaySurcharge: Number.parseFloat(e.target.value) })
-                    }
-                  />
+              {editingServiceId === service.id ? (
+                <textarea
+                  className="w-full text-sm text-gray-600 border rounded p-2 mb-3"
+                  rows={3}
+                  value={editedService.description}
+                  onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
+                />
+              ) : (
+                <p className="text-sm text-gray-600 mb-3">{service.description}</p>
+              )}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <DollarSign className="h-4 w-4 text-gray-400" />
+                  {editingServiceId === service.id ? (
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="text-lg font-bold text-[#E95440] border-b border-gray-300 bg-transparent w-20"
+                      value={editedService.price}
+                      onChange={(e) => setEditedService({ ...editedService, price: parseFloat(e.target.value) })}
+                    />
+                  ) : (
+                    <span className="text-lg font-bold text-[#E95440]">£{service.price.toFixed(2)}</span>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="p-6 border-t flex justify-end space-x-4">
-              <button
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-                onClick={() => setShowAddPriceModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-[#E95440] hover:bg-[#d64a36] text-white rounded-lg transition-colors"
-                onClick={handleAddPrice}
-              >
-                Add Price
-              </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Add Price Modal */}
+      {showAddPriceModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-xl font-medium mb-4">Adicionar Regra de Preço</h2>
+              <form onSubmit={handleAddPrice} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cidade de Origem</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedPrice.origin_city}
+                    onChange={(e) => setEditedPrice({ ...editedPrice, origin_city: e.target.value })}
+                    placeholder="Deixe vazio para qualquer origem"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Cidade de Destino</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedPrice.destination_city}
+                    onChange={(e) => setEditedPrice({ ...editedPrice, destination_city: e.target.value })}
+                    placeholder="Deixe vazio para qualquer destino"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tipo de Veículo</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedPrice.vehicle_type}
+                    onChange={(e) => setEditedPrice({ ...editedPrice, vehicle_type: e.target.value })}
+                  >
+                    <option value="">Qualquer tipo</option>
+                    <option value="Business Class">Business Class</option>
+                    <option value="First Class">First Class</option>
+                    <option value="Business Van/SUV">Business Van/SUV</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Preço Base (£)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedPrice.base_price}
+                    onChange={(e) => setEditedPrice({ ...editedPrice, base_price: parseFloat(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Preço por km (£)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedPrice.price_per_km}
+                    onChange={(e) => setEditedPrice({ ...editedPrice, price_per_km: parseFloat(e.target.value) })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPriceModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-[#E95440] text-white rounded-lg hover:bg-[#d63d2a] disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
@@ -672,57 +500,58 @@ export default function PricingPage() {
 
       {/* Add Service Modal */}
       {showAddServiceModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md">
-            <div className="p-6 border-b">
-              <h2 className="text-xl font-semibold">Add New Service</h2>
-            </div>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
             <div className="p-6">
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Service Name</label>
-                <input
-                  type="text"
-                  className="w-full p-2 border rounded-md"
-                  placeholder="e.g. Child Seat"
-                  value={editedService.name}
-                  onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Price ($)</label>
-                <input
-                  type="number"
-                  className="w-full p-2 border rounded-md"
-                  placeholder="e.g. 12"
-                  value={editedService.price || ""}
-                  onChange={(e) => setEditedService({ ...editedService, price: Number.parseFloat(e.target.value) })}
-                />
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea
-                  className="w-full p-2 border rounded-md h-24"
-                  placeholder="e.g. Suitable for toddlers weighing 0-18 kg (approx 0 to 4 years)."
-                  value={editedService.description}
-                  onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="p-6 border-t flex justify-end space-x-4">
-              <button
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-                onClick={() => setShowAddServiceModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-[#E95440] hover:bg-[#d64a36] text-white rounded-lg transition-colors"
-                onClick={handleAddService}
-              >
-                Add Service
-              </button>
+              <h2 className="text-xl font-medium mb-4">Adicionar Serviço Extra</h2>
+              <form onSubmit={handleAddService} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nome do Serviço</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedService.name}
+                    onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Descrição</label>
+                  <textarea
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedService.description}
+                    onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Preço (£)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={editedService.price}
+                    onChange={(e) => setEditedService({ ...editedService, price: parseFloat(e.target.value) })}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddServiceModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 bg-[#E95440] text-white rounded-lg hover:bg-[#d63d2a] disabled:opacity-50"
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
