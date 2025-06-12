@@ -1,0 +1,101 @@
+{
+  "tagline": "Transporte executivo em Nova York",
+  "searchPlaceholder": "Para onde você quer ir?",
+  "mainCta": "AGENDAR AGORA",
+  "fleetTitle": "Nossa Frota",
+  "links": [
+    {
+      "title": "Agendar Serviço",
+      "url": "https://customer.moovs.app/az-transfer/new/info?moovs_source=widget",
+      "description": "Reserve seu transporte executivo em Nova York",
+      "icon": "calendar",
+      "featured": true
+    },
+    {
+      "title": "Site Oficial",
+      "url": "https://aztransfer.com",
+      "description": "Conheça todos os nossos serviços",
+      "icon": "website"
+    },
+    {
+      "title": "WhatsApp",
+      "url": "https://wa.me/13478487765",
+      "description": "Atendimento imediato",
+      "icon": "whatsapp"
+    },
+    {
+      "title": "Programa de Parceiros",
+      "url": "https://aztransfer.com/parceiros",
+      "description": "Para influenciadores e agências",
+      "icon": "partners"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "suv",
+      "title": "SUV",
+      "description": "Chevrolet Suburban ou similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/3_4-2598047.webp?format=webp",
+      "passengers": 6,
+      "luggage": 8
+    },
+    {
+      "id": "minivan",
+      "title": "Mini Van",
+      "description": "Chrysler Pacifica ou similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/2_5-2598047.webp?format=webp",
+      "passengers": 7,
+      "luggage": 7
+    },
+    {
+      "id": "sedan",
+      "title": "Sedan",
+      "description": "Toyota Camry ou similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/1_3-2598047.webp?format=webp",
+      "passengers": 3,
+      "luggage": 4
+    }
+  ],
+  "campaign": {
+    "title": "Viaje com Segurança",
+    "subtitle": "Motoristas Verificados e Veículos Rastreáveis",
+    "safetyFirst": "Segurança em Primeiro Lugar",
+    "description1": "O mercado de transfer premium tem crescido devido ao aumento da insegurança e à falta de previsibilidade em transportes por aplicativos.",
+    "description2": "Mulheres viajando sozinhas representam um segmento significativo no turismo internacional e, segundo pesquisas, priorizam motoristas verificados, rastreamento e suporte confiável 24h.",
+    "ourDifferentials": "Nossos Diferenciais",
+    "differential1": {
+      "title": "Motoristas Verificados",
+      "description": "Todos os nossos motoristas são treinados, cadastrados e passam por verificação de antecedentes, garantindo sua segurança e tranquilidade."
+    },
+    "differential2": {
+      "title": "Veículos Rastreáveis",
+      "description": "Acompanhe seu trajeto em tempo real através do nosso aplicativo, compartilhe sua localização com amigos ou familiares para maior segurança."
+    },
+    "differential3": {
+      "title": "Atendimento 24h",
+      "description": "Suporte imediato para emergências e dúvidas a qualquer hora do dia ou da noite, garantindo assistência quando você mais precisa."
+    },
+    "differential4": {
+      "title": "Monitoramento de Voos",
+      "description": "Acompanhamos o status do seu voo para evitar atrasos e cancelamentos inesperados, ajustando seu transporte conforme necessário."
+    },
+    "idealFor": "Para Quem é Ideal",
+    "targetAudience": [
+      "Mulheres entre 35-54 anos que viajam sozinhas",
+      "Empresárias e profissionais liberais em viagens de negócios",
+      "Viajantes que priorizam segurança e confiabilidade",
+      "Pessoas que buscam previsibilidade e pontualidade"
+    ],
+    "bookSafeTransfer": "AGENDAR TRANSFER SEGURO",
+    "testimonials": "O Que Dizem Nossos Clientes",
+    "testimonial1": {
+      "name": "Maria R.",
+      "text": "Como mulher que viaja sozinha frequentemente, a segurança é minha prioridade. Com a AZ Transfer, me sinto tranquila sabendo que posso rastrear o veículo e que os motoristas são verificados."
+    },
+    "testimonial2": {
+      "name": "Carolina S.",
+      "text": "O atendimento 24h foi fundamental quando meu voo atrasou. A equipe ajustou meu transfer imediatamente e me manteve informada o tempo todo. Serviço impecável!"
+    },
+    "backToHome": "Voltar para a página inicial"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "tagline": "Executive transportation in New York",
+  "searchPlaceholder": "Where do you want to go?",
+  "mainCta": "BOOK NOW",
+  "fleetTitle": "Our Fleet",
+  "links": [
+    {
+      "title": "Schedule Service",
+      "url": "https://customer.moovs.app/az-transfer/new/info?moovs_source=widget",
+      "description": "Book your executive transportation in New York",
+      "icon": "calendar",
+      "featured": true
+    },
+    {
+      "title": "Official Website",
+      "url": "https://aztransfer.com",
+      "description": "Discover all our services",
+      "icon": "website"
+    },
+    {
+      "title": "WhatsApp",
+      "url": "https://wa.me/13478487765",
+      "description": "Immediate assistance",
+      "icon": "whatsapp"
+    },
+    {
+      "title": "Partner Program",
+      "url": "https://aztransfer.com/partners",
+      "description": "For influencers and agencies",
+      "icon": "partners"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "suv",
+      "title": "SUV",
+      "description": "Chevrolet Suburban or similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/3_4-2598047.webp?format=webp",
+      "passengers": 6,
+      "luggage": 8
+    },
+    {
+      "id": "minivan",
+      "title": "Mini Van",
+      "description": "Chrysler Pacifica or similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/2_5-2598047.webp?format=webp",
+      "passengers": 7,
+      "luggage": 7
+    },
+    {
+      "id": "sedan",
+      "title": "Sedan",
+      "description": "Toyota Camry or similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/1_3-2598047.webp?format=webp",
+      "passengers": 3,
+      "luggage": 4
+    }
+  ],
+  "campaign": {
+    "title": "Travel Safely",
+    "subtitle": "Verified Drivers and Trackable Vehicles",
+    "safetyFirst": "Safety First",
+    "description1": "The premium transfer market has grown due to increased insecurity and lack of predictability in app-based transportation.",
+    "description2": "Women traveling alone represent a significant segment in international tourism and, according to research, prioritize verified drivers, tracking, and reliable 24-hour support.",
+    "ourDifferentials": "Our Differentials",
+    "differential1": {
+      "title": "Verified Drivers",
+      "description": "All our drivers are trained, registered, and undergo background checks, ensuring your safety and peace of mind."
+    },
+    "differential2": {
+      "title": "Trackable Vehicles",
+      "description": "Track your journey in real-time through our app, share your location with friends or family for added security."
+    },
+    "differential3": {
+      "title": "24/7 Support",
+      "description": "Immediate support for emergencies and questions at any time of day or night, ensuring assistance when you need it most."
+    },
+    "differential4": {
+      "title": "Flight Monitoring",
+      "description": "We monitor your flight status to avoid unexpected delays and cancellations, adjusting your transportation as needed."
+    },
+    "idealFor": "Ideal For",
+    "targetAudience": [
+      "Women between 35-54 years old traveling alone",
+      "Businesswomen and professionals on business trips",
+      "Travelers who prioritize safety and reliability",
+      "People seeking predictability and punctuality"
+    ],
+    "bookSafeTransfer": "BOOK SAFE TRANSFER",
+    "testimonials": "What Our Clients Say",
+    "testimonial1": {
+      "name": "Maria R.",
+      "text": "As a woman who travels alone frequently, safety is my priority. With AZ Transfer, I feel at ease knowing I can track the vehicle and that the drivers are verified."
+    },
+    "testimonial2": {
+      "name": "Carolina S.",
+      "text": "The 24/7 support was essential when my flight was delayed. The team adjusted my transfer immediately and kept me informed the whole time. Impeccable service!"
+    },
+    "backToHome": "Back to home page"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "tagline": "Transporte ejecutivo en Nueva York",
+  "searchPlaceholder": "¿A dónde quieres ir?",
+  "mainCta": "RESERVAR AHORA",
+  "fleetTitle": "Nuestra Flota",
+  "links": [
+    {
+      "title": "Programar Servicio",
+      "url": "https://customer.moovs.app/az-transfer/new/info?moovs_source=widget",
+      "description": "Reserve su transporte ejecutivo en Nueva York",
+      "icon": "calendar",
+      "featured": true
+    },
+    {
+      "title": "Sitio Oficial",
+      "url": "https://aztransfer.com",
+      "description": "Conozca todos nuestros servicios",
+      "icon": "website"
+    },
+    {
+      "title": "WhatsApp",
+      "url": "https://wa.me/13478487765",
+      "description": "Atención inmediata",
+      "icon": "whatsapp"
+    },
+    {
+      "title": "Programa de Socios",
+      "url": "https://aztransfer.com/socios",
+      "description": "Para influencers y agencias",
+      "icon": "partners"
+    }
+  ],
+  "vehicles": [
+    {
+      "id": "suv",
+      "title": "SUV",
+      "description": "Chevrolet Suburban o similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/3_4-2598047.webp?format=webp",
+      "passengers": 6,
+      "luggage": 8
+    },
+    {
+      "id": "minivan",
+      "title": "Mini Van",
+      "description": "Chrysler Pacifica o similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/2_5-2598047.webp?format=webp",
+      "passengers": 7,
+      "luggage": 7
+    },
+    {
+      "id": "sedan",
+      "title": "Sedan",
+      "description": "Toyota Camry o similar",
+      "image": "https://content.app-sources.com/s/98064488125095989/uploads/Images/1_3-2598047.webp?format=webp",
+      "passengers": 3,
+      "luggage": 4
+    }
+  ],
+  "campaign": {
+    "title": "Viaje con Seguridad",
+    "subtitle": "Conductores Verificados y Vehículos Rastreables",
+    "safetyFirst": "Seguridad Primero",
+    "description1": "El mercado de transfer premium ha crecido debido al aumento de la inseguridad y la falta de previsibilidad en el transporte por aplicaciones.",
+    "description2": "Las mujeres que viajan solas representan un segmento significativo en el turismo internacional y, según investigaciones, priorizan conductores verificados, rastreo y soporte confiable las 24 horas.",
+    "ourDifferentials": "Nuestros Diferenciales",
+    "differential1": {
+      "title": "Conductores Verificados",
+      "description": "Todos nuestros conductores están capacitados, registrados y pasan por verificación de antecedentes, garantizando su seguridad y tranquilidad."
+    },
+    "differential2": {
+      "title": "Vehículos Rastreables",
+      "description": "Siga su trayecto en tiempo real a través de nuestra aplicación, comparta su ubicación con amigos o familiares para mayor seguridad."
+    },
+    "differential3": {
+      "title": "Atención 24h",
+      "description": "Soporte inmediato para emergencias y dudas a cualquier hora del día o de la noche, garantizando asistencia cuando más lo necesita."
+    },
+    "differential4": {
+      "title": "Monitoreo de Vuelos",
+      "description": "Seguimos el estado de su vuelo para evitar retrasos y cancelaciones inesperadas, ajustando su transporte según sea necesario."
+    },
+    "idealFor": "Para Quién es Ideal",
+    "targetAudience": [
+      "Mujeres entre 35-54 años que viajan solas",
+      "Empresarias y profesionales liberales en viajes de negocios",
+      "Viajeros que priorizan seguridad y confiabilidad",
+      "Personas que buscan previsibilidad y puntualidad"
+    ],
+    "bookSafeTransfer": "RESERVAR TRANSFER SEGURO",
+    "testimonials": "Lo Que Dicen Nuestros Clientes",
+    "testimonial1": {
+      "name": "Maria R.",
+      "text": "Como mujer que viaja sola con frecuencia, la seguridad es mi prioridad. Con AZ Transfer, me siento tranquila sabiendo que puedo rastrear el vehículo y que los conductores están verificados."
+    },
+    "testimonial2": {
+      "name": "Carolina S.",
+      "text": "La atención 24h fue fundamental cuando mi vuelo se retrasó. El equipo ajustó mi transfer inmediatamente y me mantuvo informada todo el tiempo. ¡Servicio impecable!"
+    },
+    "backToHome": "Volver a la página principal"
+  }
+}
