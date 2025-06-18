@@ -1,11 +1,16 @@
+"use client"
+
 import { Check } from "lucide-react"
 import Image from "next/image"
+import { useExtras } from "@/hooks/useExtras"
 
 interface PricingTableProps {
   language: string
 }
 
 export default function PricingTable({ language }: PricingTableProps) {
+  const { data: extras, isLoading } = useExtras()
+
   const isPortuguese = language === "pt"
   const isSpanish = language === "es"
 
@@ -13,6 +18,17 @@ export default function PricingTable({ language }: PricingTableProps) {
     if (isPortuguese) return pt
     if (isSpanish) return es
     return en // default para inglês
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+          <span className="ml-2 text-gray-600">Carregando preços...</span>
+        </div>
+      </div>
+    )
   }
 
   return (

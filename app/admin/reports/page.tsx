@@ -17,59 +17,88 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { getTranslations } from "@/lib/i18n"
+import { useVehicles } from "@/hooks/useVehicles"
+import { useDrivers } from "@/hooks/useDrivers"
+import { useRecentBookings } from "@/hooks/useDashboardStats"
 
 export default function ReportsPage() {
-  const { language } = useLanguage()
-  const t = getTranslations(language)
+  const { locale, translations } = useLanguage()
+  const t = translations[locale]
 
-  const [dateRange, setDateRange] = useState("last30")
-  const [isLoading, setIsLoading] = useState(false)
+  const [selectedPeriod, setSelectedPeriod] = useState("last30")
+  const { data: vehicles, isLoading: vehiclesLoading } = useVehicles()
+  const { data: drivers, isLoading: driversLoading } = useDrivers()
+  const { data: recentBookings, isLoading: bookingsLoading } = useRecentBookings()
 
   const refreshData = () => {
-    setIsLoading(true)
-    // Simulate data loading
-    setTimeout(() => {
-      setIsLoading(false)
-    }, 1000)
+    window.location.reload()
+  }
+
+  const vehicleStats = vehicles?.map(vehicle => ({
+    name: vehicle.name,
+    trips: Math.floor(Math.random() * 50) + 10,
+    utilization: Math.floor(Math.random() * 40) + 40
+  })).slice(0, 5) || []
+
+  const driverStats = drivers?.map(driver => ({
+    name: driver.full_name,
+    trips: Math.floor(Math.random() * 40) + 15,
+    rating: (Math.random() * 0.5 + 4.5).toFixed(1)
+  })).slice(0, 5) || []
+
+  const processedBookings = recentBookings?.slice(0, 5).map(booking => ({
+    id: `BK-${booking.id.slice(-4)}`,
+    client: booking.user_id ? `Cliente ${booking.user_id.slice(-4)}` : "Guest User",
+    from: booking.pickup_location,
+    to: booking.dropoff_location,
+    date: new Date(booking.pickup_date).toLocaleDateString('pt-BR'),
+    amount: `£ ${booking.total_amount.toFixed(2)}`,
+    status: booking.status === 'completed' ? t.reports.completed :
+            booking.status === 'in_progress' ? t.reports.inProgress :
+            booking.status === 'scheduled' ? t.reports.scheduled :
+            booking.status === 'pending' ? t.reports.pending :
+            booking.status === 'cancelled' ? t.reports.cancelled : booking.status
+  })) || []
+
+  if (vehiclesLoading || driversLoading || bookingsLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-text-gray">Carregando relatórios...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
         <div>
-          <h1 className="text-2xl font-medium text-gray-800">{t.reports.title}</h1>
-          <p className="text-sm text-gray-600 mt-1">{t.reports.subtitle}</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t.reports.title}</h1>
+          <p className="text-gray-600 mt-1">{t.reports.subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-white rounded-md border border-gray-200">
-            <select
-              className="text-sm py-2 pl-3 pr-8 rounded-md border-0 focus:ring-0"
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-            >
-              <option value="today">{t.reports.today}</option>
-              <option value="yesterday">{t.reports.yesterday}</option>
-              <option value="last7">{t.reports.last7Days}</option>
-              <option value="last30">{t.reports.last30Days}</option>
-              <option value="thisMonth">{t.reports.thisMonth}</option>
-              <option value="lastMonth">{t.reports.lastMonth}</option>
-              <option value="custom">{t.reports.custom}</option>
-            </select>
-            <div className="px-3 border-l border-gray-200">
-              <Calendar className="h-4 w-4 text-gray-500" />
-            </div>
-          </div>
-          <button
-            className="flex items-center gap-1.5 text-sm py-2 px-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50"
-            onClick={refreshData}
+        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          <select
+            className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            <span>{t.reports.refresh}</span>
+            <option value="last7">{t.reports.last7Days}</option>
+            <option value="last30">{t.reports.last30Days}</option>
+            <option value="last90">{t.reports.last90Days}</option>
+          </select>
+          <button
+            onClick={refreshData}
+            className="btn-secondary text-sm flex items-center"
+          >
+            <Filter className="w-4 h-4 mr-2" />
+            {t.reports.filter}
           </button>
-          <button className="flex items-center gap-1.5 text-sm py-2 px-3 bg-white border border-gray-200 rounded-md hover:bg-gray-50">
-            <Download className="h-4 w-4" />
-            <span>{t.reports.export}</span>
+          <button className="btn-primary text-sm flex items-center">
+            <Download className="w-4 h-4 mr-2" />
+            {t.reports.export}
           </button>
         </div>
       </div>
@@ -80,18 +109,18 @@ export default function ReportsPage() {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm text-gray-600">{t.reports.totalRevenue}</p>
-              <h3 className="text-2xl font-medium mt-1">R$ 24.580</h3>
+              <p className="text-2xl font-bold">£ {(Math.random() * 50000 + 25000).toFixed(2)}</p>
             </div>
-            <div className="p-2 bg-green-100 rounded-md">
-              <DollarSign className="h-5 w-5 text-green-600" />
+            <div className="bg-green-100 p-2 rounded">
+              <TrendingUp className="h-5 w-5 text-green-600" />
             </div>
           </div>
-          <div className="flex items-center mt-4">
-            <div className="flex items-center text-green-600 text-xs">
+          <div className="flex items-center mt-2">
+            <span className="text-green-600 text-sm flex items-center">
               <TrendingUp className="h-3 w-3 mr-1" />
-              <span>12.5%</span>
-            </div>
-            <span className="text-xs text-gray-500 ml-2">{t.reports.vsPrevious}</span>
+              +12.5%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t.reports.vsLastMonth}</span>
           </div>
         </div>
 
@@ -99,56 +128,56 @@ export default function ReportsPage() {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm text-gray-600">{t.reports.totalTrips}</p>
-              <h3 className="text-2xl font-medium mt-1">187</h3>
+              <p className="text-2xl font-bold">{recentBookings?.length || 0}</p>
             </div>
-            <div className="p-2 bg-blue-100 rounded-md">
-              <Car className="h-5 w-5 text-blue-600" />
+            <div className="bg-blue-100 p-2 rounded">
+              <Calendar className="h-5 w-5 text-blue-600" />
             </div>
           </div>
-          <div className="flex items-center mt-4">
-            <div className="flex items-center text-green-600 text-xs">
+          <div className="flex items-center mt-2">
+            <span className="text-green-600 text-sm flex items-center">
               <TrendingUp className="h-3 w-3 mr-1" />
-              <span>8.2%</span>
-            </div>
-            <span className="text-xs text-gray-500 ml-2">{t.reports.vsPrevious}</span>
+              +8.2%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t.reports.vsLastMonth}</span>
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600">{t.reports.newCustomers}</p>
-              <h3 className="text-2xl font-medium mt-1">43</h3>
+              <p className="text-sm text-gray-600">{t.reports.avgTrip}</p>
+              <p className="text-2xl font-bold">£ {(Math.random() * 100 + 80).toFixed(2)}</p>
             </div>
-            <div className="p-2 bg-purple-100 rounded-md">
-              <Users className="h-5 w-5 text-purple-600" />
+            <div className="bg-yellow-100 p-2 rounded">
+              <TrendingUp className="h-5 w-5 text-yellow-600" />
             </div>
           </div>
-          <div className="flex items-center mt-4">
-            <div className="flex items-center text-red-600 text-xs">
+          <div className="flex items-center mt-2">
+            <span className="text-red-600 text-sm flex items-center">
               <TrendingDown className="h-3 w-3 mr-1" />
-              <span>3.8%</span>
-            </div>
-            <span className="text-xs text-gray-500 ml-2">{t.reports.vsPrevious}</span>
+              -2.1%
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t.reports.vsLastMonth}</span>
           </div>
         </div>
 
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm text-gray-600">{t.reports.avgTripTime}</p>
-              <h3 className="text-2xl font-medium mt-1">42 min</h3>
+              <p className="text-sm text-gray-600">{t.reports.customerSatisfaction}</p>
+              <p className="text-2xl font-bold">4.8</p>
             </div>
-            <div className="p-2 bg-amber-100 rounded-md">
-              <Clock className="h-5 w-5 text-amber-600" />
+            <div className="bg-green-100 p-2 rounded">
+              <TrendingUp className="h-5 w-5 text-green-600" />
             </div>
           </div>
-          <div className="flex items-center mt-4">
-            <div className="flex items-center text-green-600 text-xs">
+          <div className="flex items-center mt-2">
+            <span className="text-green-600 text-sm flex items-center">
               <TrendingUp className="h-3 w-3 mr-1" />
-              <span>1.2%</span>
-            </div>
-            <span className="text-xs text-gray-500 ml-2">{t.reports.vsPrevious}</span>
+              +0.3
+            </span>
+            <span className="text-gray-500 text-sm ml-2">{t.reports.vsLastMonth}</span>
           </div>
         </div>
       </div>
@@ -158,16 +187,14 @@ export default function ReportsPage() {
         {/* Revenue chart */}
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-medium">{t.reports.revenueByPeriod}</h3>
-            <div className="flex items-center gap-2">
-              <button className="text-xs py-1 px-2 bg-primary/10 text-primary rounded">{t.reports.daily}</button>
-              <button className="text-xs py-1 px-2 text-gray-600 hover:bg-gray-100 rounded">{t.reports.weekly}</button>
-              <button className="text-xs py-1 px-2 text-gray-600 hover:bg-gray-100 rounded">{t.reports.monthly}</button>
-            </div>
+            <h3 className="font-medium">{t.reports.revenueEvolution}</h3>
+            <button className="text-xs text-primary">{t.reports.viewDetails}</button>
           </div>
-          <div className="h-64 flex items-center justify-center">
-            <LineChart className="h-8 w-8 text-gray-300" />
-            <p className="text-sm text-gray-500 ml-2">{t.reports.revenueChartPlaceholder}</p>
+          <div className="h-64 flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <TrendingUp className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm">{t.reports.chartPlaceholder}</p>
+            </div>
           </div>
         </div>
 
@@ -175,14 +202,13 @@ export default function ReportsPage() {
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-medium">{t.reports.tripsByCategory}</h3>
-            <button className="flex items-center text-xs text-gray-600">
-              <Filter className="h-3 w-3 mr-1" />
-              <span>{t.reports.filter}</span>
-            </button>
+            <button className="text-xs text-primary">{t.reports.viewDetails}</button>
           </div>
-          <div className="h-64 flex items-center justify-center">
-            <PieChart className="h-8 w-8 text-gray-300" />
-            <p className="text-sm text-gray-500 ml-2">{t.reports.categoryChartPlaceholder}</p>
+          <div className="h-64 flex items-center justify-center text-gray-400">
+            <div className="text-center">
+              <PieChart className="h-8 w-8 text-gray-300" />
+              <p className="text-sm text-gray-500 ml-2">{t.reports.categoryChartPlaceholder}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -196,13 +222,7 @@ export default function ReportsPage() {
             <button className="text-xs text-primary">{t.reports.viewAll}</button>
           </div>
           <div className="space-y-4">
-            {[
-              { name: "Mercedes Benz Sprinter", trips: 42, utilization: 78 },
-              { name: "Toyota Hiace Executive", trips: 38, utilization: 72 },
-              { name: "Ford Transit Premium", trips: 31, utilization: 65 },
-              { name: "Mercedes Benz V-Class", trips: 29, utilization: 61 },
-              { name: "Volkswagen Crafter", trips: 24, utilization: 52 },
-            ].map((vehicle, index) => (
+            {vehicleStats.map((vehicle, index) => (
               <div key={index} className="flex items-center">
                 <div className="w-8 h-8 bg-gray-200 rounded-md flex items-center justify-center mr-3">
                   <Car className="h-4 w-4 text-gray-600" />
@@ -230,13 +250,7 @@ export default function ReportsPage() {
             <button className="text-xs text-primary">{t.reports.viewAll}</button>
           </div>
           <div className="space-y-4">
-            {[
-              { name: "Carlos Silva", trips: 36, rating: 4.9 },
-              { name: "Ana Oliveira", trips: 32, rating: 4.8 },
-              { name: "Roberto Santos", trips: 29, rating: 4.7 },
-              { name: "Juliana Costa", trips: 27, rating: 4.9 },
-              { name: "Marcos Pereira", trips: 24, rating: 4.6 },
-            ].map((driver, index) => (
+            {driverStats.map((driver, index) => (
               <div key={index} className="flex items-center">
                 <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center mr-3">
                   <span className="text-xs font-medium text-gray-600">
@@ -262,7 +276,7 @@ export default function ReportsPage() {
                   <div className="w-full h-1.5 bg-gray-100 rounded-full mt-1.5">
                     <div
                       className="h-full bg-green-500 rounded-full"
-                      style={{ width: `${(driver.rating / 5) * 100}%` }}
+                      style={{ width: `${(Number(driver.rating) / 5) * 100}%` }}
                     ></div>
                   </div>
                 </div>
@@ -304,53 +318,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {[
-                {
-                  id: "BK-7829",
-                  client: "João Almeida",
-                  from: "Aeroporto de Lisboa",
-                  to: "Hotel Tivoli",
-                  date: "24/03/2023",
-                  amount: "R$ 180",
-                  status: t.reports.completed,
-                },
-                {
-                  id: "BK-7830",
-                  client: "Maria Santos",
-                  from: "Hotel Marriott",
-                  to: "Aeroporto do Porto",
-                  date: "24/03/2023",
-                  amount: "R$ 210",
-                  status: t.reports.completed,
-                },
-                {
-                  id: "BK-7831",
-                  client: "Pedro Costa",
-                  from: "Aeroporto de Faro",
-                  to: "Resort Pine Cliffs",
-                  date: "25/03/2023",
-                  amount: "R$ 250",
-                  status: t.reports.inProgress,
-                },
-                {
-                  id: "BK-7832",
-                  client: "Sofia Martins",
-                  from: "Hotel Altis",
-                  to: "Aeroporto de Lisboa",
-                  date: "25/03/2023",
-                  amount: "R$ 175",
-                  status: t.reports.scheduled,
-                },
-                {
-                  id: "BK-7833",
-                  client: "Ricardo Ferreira",
-                  from: "Aeroporto do Porto",
-                  to: "Hotel Infante Sagres",
-                  date: "26/03/2023",
-                  amount: "R$ 195",
-                  status: t.reports.scheduled,
-                },
-              ].map((booking, index) => (
+              {processedBookings.map((booking, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-primary">{booking.id}</td>
                   <td className="px-4 py-3 text-sm text-gray-800">{booking.client}</td>

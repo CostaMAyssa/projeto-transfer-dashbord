@@ -3,6 +3,23 @@ import { createBrowserClient } from '@supabase/ssr'
 export type Database = {
   public: {
     Tables: {
+      admin_profiles: {
+        Row: {
+          id: string
+          full_name: string | null
+          role: string | null
+        }
+        Insert: {
+          id: string
+          full_name?: string | null
+          role?: string | null
+        }
+        Update: {
+          id?: string
+          full_name?: string | null
+          role?: string | null
+        }
+      }
       vehicles: {
         Row: {
           id: string
@@ -40,6 +57,35 @@ export type Database = {
           license_plate?: string | null
           status?: 'active' | 'maintenance' | 'inactive'
           image_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      vehicle_categories: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          base_price: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          base_price: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          base_price?: number
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -103,6 +149,82 @@ export type Database = {
           description?: string | null
           price?: number
           created_at?: string
+        }
+      }
+      zones: {
+        Row: {
+          id: string
+          name: string
+          description: string | null
+          type: 'circular' | 'polygonal'
+          center_lat: number | null
+          center_lng: number | null
+          radius_meters: number | null
+          geojson: any | null
+          coverage_area: string
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          description?: string | null
+          type: 'circular' | 'polygonal'
+          center_lat?: number | null
+          center_lng?: number | null
+          radius_meters?: number | null
+          geojson?: any | null
+          coverage_area: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          description?: string | null
+          type?: 'circular' | 'polygonal'
+          center_lat?: number | null
+          center_lng?: number | null
+          radius_meters?: number | null
+          geojson?: any | null
+          coverage_area?: string
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      zone_pricing: {
+        Row: {
+          id: string
+          origin_zone_id: string
+          destination_zone_id: string
+          vehicle_category_id: string
+          price: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          origin_zone_id: string
+          destination_zone_id: string
+          vehicle_category_id: string
+          price: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          origin_zone_id?: string
+          destination_zone_id?: string
+          vehicle_category_id?: string
+          price?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
         }
       }
       pricing_rules: {
@@ -224,10 +346,48 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      vw_bookings_full: {
+        Row: {
+          id: string
+          user_id: string | null
+          pickup_location: string
+          dropoff_location: string
+          pickup_date: string
+          pickup_time: string
+          distance_km: number | null
+          duration_min: number | null
+          vehicle_id: string | null
+          flight_number: string | null
+          passengers: number
+          luggage: number
+          notes: string | null
+          total_amount: number
+          status: 'pending' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled'
+          payment_status: 'unpaid' | 'paid' | 'refunded'
+          payment_method: string | null
+          created_at: string
+          updated_at: string
+          vehicle_name: string | null
+          driver_name: string | null
+        }
+      }
     }
     Functions: {
-      [_ in never]: never
+      create_booking: {
+        Args: {
+          p_pickup_location: string
+          p_dropoff_location: string
+          p_pickup_date: string
+          p_pickup_time: string
+          p_vehicle_id: string
+          p_passengers: number
+          p_luggage: number
+          p_flight_number: string | null
+          p_notes: string | null
+          p_extras: any
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
