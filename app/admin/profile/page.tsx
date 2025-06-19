@@ -2,10 +2,16 @@
 
 import { useState } from "react"
 import { User, Edit, Save, X, Phone, Mail, MapPin, Shield } from "lucide-react"
-import { useAdmin } from "@/hooks/useAdmin"
 
 export default function ProfilePage() {
-  const { data: adminProfile, isLoading, mutate } = useAdmin()
+  // Dados mock temporários até implementar o hook useAdmin
+  const adminProfile = {
+    id: "admin-001",
+    full_name: "Administrador Sistema",
+    role: "admin"
+  }
+  
+  const isLoading = false
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
     full_name: adminProfile?.full_name || "",
@@ -20,7 +26,7 @@ export default function ProfilePage() {
       // Atualizar apenas os campos que temos no schema
       // updateAdmin seria implementado no hook useAdmin
       setIsEditing(false)
-      mutate() // Revalidar dados
+      // mutate() // Revalidar dados
     } catch (error) {
       console.error("Error updating profile:", error)
     }

@@ -3,16 +3,19 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Download } from "lucide-react"
-import { useVehicles, createVehicle, updateVehicle, deleteVehicle } from "@/hooks/useVehicles"
+import { Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight } from "lucide-react"
+import { useVehicles, createVehicle, updateVehicle, deleteVehicle, type Vehicle } from "@/hooks/useVehicles"
 import { mutate } from "swr"
+import { ImageUpload } from '@/components/ImageUpload'
 
 export default function VehiclesPage() {
   const { data: vehicles, error, isLoading } = useVehicles()
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<string | null>(null)
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(6)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -25,7 +28,7 @@ export default function VehiclesPage() {
     luggage: 2,
     year: new Date().getFullYear(),
     license_plate: "",
-    status: "active" as const,
+    status: "active" as "active" | "maintenance" | "inactive",
     image_url: "",
   })
 
@@ -79,6 +82,21 @@ export default function VehiclesPage() {
     setShowDeleteModal(true)
   }
 
+  const handleEditClick = (vehicle: Vehicle) => {
+    setEditingVehicle(vehicle)
+    setFormData({
+      name: vehicle.name,
+      type: vehicle.type,
+      passengers: vehicle.passengers,
+      luggage: vehicle.luggage,
+      year: vehicle.year || new Date().getFullYear(),
+      license_plate: vehicle.license_plate || "",
+      status: vehicle.status,
+      image_url: vehicle.image_url || "",
+    })
+    setShowEditModal(true)
+  }
+
   const confirmDelete = async () => {
     if (selectedVehicle) {
       try {
@@ -98,7 +116,22 @@ export default function VehiclesPage() {
     setIsSubmitting(true)
 
     try {
-      await createVehicle(formData)
+      // Validar campos obrigatórios
+      if (!formData.name || !formData.type || !formData.passengers || !formData.luggage) {
+        throw new Error('Por favor, preencha todos os campos obrigatórios')
+      }
+
+      // Converter campos numéricos
+      const vehicleData = {
+        ...formData,
+        passengers: Number(formData.passengers),
+        luggage: Number(formData.luggage),
+        year: formData.year ? Number(formData.year) : null,
+        license_plate: formData.license_plate || null,
+        image_url: formData.image_url || null
+      }
+
+      await createVehicle(vehicleData)
       mutate('vehicles')
       setShowAddModal(false)
       setFormData({
@@ -113,7 +146,51 @@ export default function VehiclesPage() {
       })
     } catch (error) {
       console.error('Erro ao criar veículo:', error)
-      alert('Erro ao criar veículo')
+      alert(error instanceof Error ? error.message : 'Erro ao criar veículo')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingVehicle) return
+    
+    setIsSubmitting(true)
+
+    try {
+      // Validar campos obrigatórios
+      if (!formData.name || !formData.type || !formData.passengers || !formData.luggage) {
+        throw new Error('Por favor, preencha todos os campos obrigatórios')
+      }
+
+      // Converter campos numéricos
+      const vehicleData = {
+        ...formData,
+        passengers: Number(formData.passengers),
+        luggage: Number(formData.luggage),
+        year: formData.year ? Number(formData.year) : null,
+        license_plate: formData.license_plate || null,
+        image_url: formData.image_url || null
+      }
+
+      await updateVehicle(editingVehicle.id, vehicleData)
+      mutate('vehicles')
+      setShowEditModal(false)
+      setEditingVehicle(null)
+      setFormData({
+        name: "",
+        type: "Business Class",
+        passengers: 3,
+        luggage: 2,
+        year: new Date().getFullYear(),
+        license_plate: "",
+        status: "active",
+        image_url: "",
+      })
+    } catch (error) {
+      console.error('Erro ao editar veículo:', error)
+      alert(error instanceof Error ? error.message : 'Erro ao editar veículo')
     } finally {
       setIsSubmitting(false)
     }
@@ -170,16 +247,6 @@ export default function VehiclesPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors">
-              <Filter className="h-4 w-4 mr-2 text-gray-500" />
-              Filtrar
-            </button>
-            <button className="flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors">
-              <Download className="h-4 w-4 mr-2 text-gray-500" />
-              Exportar
-            </button>
-          </div>
         </div>
       </div>
 
@@ -205,7 +272,7 @@ export default function VehiclesPage() {
                   <p className="text-sm text-gray-600">{vehicle.type}</p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button className="p-1 hover:bg-gray-100 rounded">
+                  <button className="p-1 hover:bg-gray-100 rounded" onClick={() => handleEditClick(vehicle)}>
                     <Edit className="h-4 w-4 text-gray-500" />
                   </button>
                   <button 
@@ -348,12 +415,11 @@ export default function VehiclesPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">URL da Imagem</label>
-                  <input
-                    type="url"
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                  <label className="block text-sm font-medium mb-1">Imagem do Veículo</label>
+                  <ImageUpload
                     value={formData.image_url}
-                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                    onChange={(url) => setFormData({ ...formData, image_url: url })}
+                    onError={(error) => alert(error)}
                   />
                 </div>
                 <div>
@@ -372,6 +438,122 @@ export default function VehiclesPage() {
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={isSubmitting}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#E95440] text-white rounded-lg hover:bg-[#d63d2a] disabled:opacity-50"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Vehicle Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-medium mb-4">Editar Veículo</h2>
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nome</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tipo</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  >
+                    <option value="Business Class">Business Class</option>
+                    <option value="First Class">First Class</option>
+                    <option value="Business Van/SUV">Business Van/SUV</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Passageiros</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                      value={formData.passengers}
+                      onChange={(e) => setFormData({ ...formData, passengers: parseInt(e.target.value) })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Bagagens</label>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                      value={formData.luggage}
+                      onChange={(e) => setFormData({ ...formData, luggage: parseInt(e.target.value) })}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Ano</label>
+                  <input
+                    type="number"
+                    min="1900"
+                    max={new Date().getFullYear() + 1}
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.year}
+                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Placa</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.license_plate}
+                    onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Imagem do Veículo</label>
+                  <ImageUpload
+                    value={formData.image_url}
+                    onChange={(url) => setFormData({ ...formData, image_url: url })}
+                    onError={(error) => alert(error)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                  >
+                    <option value="active">Ativo</option>
+                    <option value="maintenance">Manutenção</option>
+                    <option value="inactive">Inativo</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
                     className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                     disabled={isSubmitting}
                   >

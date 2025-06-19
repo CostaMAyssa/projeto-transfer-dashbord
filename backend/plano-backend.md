@@ -131,10 +131,27 @@ alter table booking_extras enable row level security;
 -- Público lê veículos/extras
 create policy "public_read_vehicles" on vehicles
   for select using ( true );
+
+-- Admin pode fazer tudo com veículos (para o painel admin)
+create policy "admin_manage_vehicles" on vehicles
+  for all using ( true )
+  with check ( true );
+
 create policy "public_read_extras" on extras
   for select using ( true );
+
+-- Admin pode fazer tudo com extras
+create policy "admin_manage_extras" on extras
+  for all using ( true )
+  with check ( true );
+
 create policy "public_read_pricing" on pricing_rules
   for select using ( true );
+
+-- Admin pode fazer tudo com pricing rules
+create policy "admin_manage_pricing" on pricing_rules
+  for all using ( true )
+  with check ( true );
 
 -- Reservas: usuário vê/aplica apenas as suas
 create policy "bookings_by_owner" on bookings

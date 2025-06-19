@@ -9,8 +9,6 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  Download,
   Phone,
   Mail,
   Calendar,
@@ -18,6 +16,7 @@ import {
 import { useDrivers, createDriver, updateDriver, deleteDriver } from "@/hooks/useDrivers"
 import { useVehicles } from "@/hooks/useVehicles"
 import { mutate } from "swr"
+import { ImageUpload } from '@/components/ImageUpload'
 
 export default function DriversPage() {
   const { data: drivers, error, isLoading } = useDrivers()
@@ -184,16 +183,6 @@ export default function DriversPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors">
-              <Filter className="h-4 w-4 mr-2 text-gray-500" />
-              Filtrar
-            </button>
-            <button className="flex items-center px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors">
-              <Download className="h-4 w-4 mr-2 text-gray-500" />
-              Exportar
-            </button>
-          </div>
         </div>
       </div>
 
@@ -209,7 +198,7 @@ export default function DriversPage() {
                       <img src={driver.avatar_url} alt={driver.full_name} className="w-12 h-12 rounded-full object-cover" />
                     ) : (
                       <span className="text-lg font-medium text-gray-600">
-                        {driver.full_name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                        {driver.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -342,6 +331,7 @@ export default function DriversPage() {
                   <label className="block text-sm font-medium mb-1">Número da CNH</label>
                   <input
                     type="text"
+                    required
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
                     value={formData.license_number}
                     onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
@@ -354,7 +344,7 @@ export default function DriversPage() {
                     value={formData.vehicle_id}
                     onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
                   >
-                    <option value="">Selecionar veículo</option>
+                    <option value="">Selecione um veículo</option>
                     {vehicles?.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
                         {vehicle.name} - {vehicle.type}
@@ -363,12 +353,11 @@ export default function DriversPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">URL do Avatar</label>
-                  <input
-                    type="url"
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                  <label className="block text-sm font-medium mb-1">Foto do Motorista</label>
+                  <ImageUpload
                     value={formData.avatar_url}
-                    onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
+                    onChange={(url) => setFormData({ ...formData, avatar_url: url })}
+                    onError={(error) => alert(error)}
                   />
                 </div>
                 <div>
