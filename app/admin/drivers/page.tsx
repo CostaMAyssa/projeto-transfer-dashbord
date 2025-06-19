@@ -23,8 +23,10 @@ export default function DriversPage() {
   const { data: vehicles } = useVehicles()
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedDriver, setSelectedDriver] = useState<string | null>(null)
+  const [editingDriver, setEditingDriver] = useState<any>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(6)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -88,6 +90,51 @@ export default function DriversPage() {
   const handleDeleteClick = (id: string) => {
     setSelectedDriver(id)
     setShowDeleteModal(true)
+  }
+
+  const handleEditClick = (driver: any) => {
+    setEditingDriver(driver)
+    setFormData({
+      full_name: driver.full_name,
+      phone: driver.phone || "",
+      email: driver.email || "",
+      license_number: driver.license_number,
+      status: driver.status,
+      avatar_url: driver.avatar_url || "",
+      vehicle_id: driver.vehicle_id || "",
+    })
+    setShowEditModal(true)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingDriver) return
+    
+    setIsSubmitting(true)
+
+    try {
+      await updateDriver(editingDriver.id, {
+        ...formData,
+        vehicle_id: formData.vehicle_id || null,
+      })
+      mutate('drivers')
+      setShowEditModal(false)
+      setEditingDriver(null)
+      setFormData({
+        full_name: "",
+        phone: "",
+        email: "",
+        license_number: "",
+        status: "active",
+        avatar_url: "",
+        vehicle_id: "",
+      })
+    } catch (error) {
+      console.error('Erro ao editar motorista:', error)
+      alert('Erro ao editar motorista')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const confirmDelete = async () => {
@@ -210,7 +257,7 @@ export default function DriversPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button className="p-1 hover:bg-gray-100 rounded">
+                  <button className="p-1 hover:bg-gray-100 rounded" onClick={() => handleEditClick(driver)}>
                     <Edit className="h-4 w-4 text-gray-500" />
                   </button>
                   <button 
@@ -376,6 +423,109 @@ export default function DriversPage() {
                   <button
                     type="button"
                     onClick={() => setShowAddModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                    disabled={isSubmitting}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#E95440] text-white rounded-lg hover:bg-[#d63d2a] disabled:opacity-50"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Salvando...' : 'Salvar'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Driver Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-medium mb-4">Editar Motorista</h2>
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.full_name}
+                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Telefone</label>
+                  <input
+                    type="tel"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Email</label>
+                  <input
+                    type="email"
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Número da CNH</label>
+                  <input
+                    type="text"
+                    required
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.license_number}
+                    onChange={(e) => setFormData({ ...formData, license_number: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Veículo</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.vehicle_id}
+                    onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
+                  >
+                    <option value="">Selecione um veículo</option>
+                    {vehicles?.map((vehicle) => (
+                      <option key={vehicle.id} value={vehicle.id}>
+                        {vehicle.name} - {vehicle.type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Foto do Motorista</label>
+                  <ImageUpload
+                    value={formData.avatar_url}
+                    onChange={(url) => setFormData({ ...formData, avatar_url: url })}
+                    onError={(error) => alert(error)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Status</label>
+                  <select
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="active">Ativo</option>
+                    <option value="on_leave">De Licença</option>
+                    <option value="inactive">Inativo</option>
+                  </select>
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(false)}
                     className="px-4 py-2 border rounded-lg hover:bg-gray-50"
                     disabled={isSubmitting}
                   >
