@@ -286,11 +286,8 @@ export default function AdminDashboard({
                 {/* Dropdown menu */}
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                    <Link href="/admin/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      {locale === "pt" ? "Minha Conta" : locale === "es" ? "Mi Cuenta" : "My Account"}
-                    </Link>
                     <Link href="/admin/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      {translations.common.settings}
+                      {locale === "pt" ? "Minha Conta" : locale === "es" ? "Mi Cuenta" : "My Account"}
                     </Link>
                     <div className="border-t border-gray-100 my-1"></div>
                     <button

@@ -3,9 +3,11 @@
 import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Lock } from "lucide-react"
+import { Eye, EyeOff, Lock, Mail as MailIcon } from "lucide-react"
+import { login } from "@/hooks/useAdmin"
 
 export default function AdminLogin() {
+  const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState("")
@@ -17,21 +19,14 @@ export default function AdminLogin() {
     setIsLoading(true)
     setError("")
 
-    // Simulate loading time
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    if (password === "nexlink") {
-      // Set authentication in localStorage
-      localStorage.setItem("admin_authenticated", "true")
-      localStorage.setItem("admin_auth_time", Date.now().toString())
-
-      // Redirect to admin dashboard
+    try {
+      await login(email, password)
       router.push("/admin")
-    } else {
-      setError("Senha incorreta. Tente novamente.")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ocorreu um erro desconhecido.")
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   return (
@@ -43,15 +38,36 @@ export default function AdminLogin() {
             <img src="/images/az-logo.png" alt="AZ Transfer" className="h-24 w-auto" />
           </div>
           <h2 className="text-2xl font-medium font-dm-sans text-text-dark mb-3 mt-2">Painel Administrativo</h2>
-          <p className="text-text-gray text-sm">Digite a senha para acessar o sistema</p>
+          <p className="text-text-gray text-sm">Faça login para acessar o sistema</p>
         </div>
 
         {/* Login Form */}
         <div className="bg-white rounded-lg p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
+              <label htmlFor="email" className="block text-sm font-medium text-text-dark mb-2">
+                Email
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <MailIcon className="h-5 w-5 text-text-gray" />
+                </div>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-standard pl-10 w-full"
+                  placeholder="seu@email.com"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium text-text-dark mb-2">
-                Senha de Acesso
+                Senha
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -90,7 +106,7 @@ export default function AdminLogin() {
 
             <button
               type="submit"
-              disabled={isLoading || !password}
+              disabled={isLoading || !password || !email}
               className="btn-primary bg-secondary w-full flex items-center justify-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (

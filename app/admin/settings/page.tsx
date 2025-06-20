@@ -1,278 +1,233 @@
 "use client"
 
-import { useState } from "react"
-import { Save, Globe, Bell, Lock, Shield, CreditCard, Mail } from "lucide-react"
+import { useState, useEffect } from "react"
+import { User, Edit, Save, X, Phone, Mail, MapPin, Shield } from "lucide-react"
+import { useAdmin } from "@/hooks/useAdmin"
+import ChangePasswordModal from "@/components/change-password-modal"
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("general")
-  const [language, setLanguage] = useState("en")
-  const [notifications, setNotifications] = useState({
-    email: true,
-    browser: true,
-    mobile: false,
+  const { user, isLoading } = useAdmin()
+  const [isEditing, setIsEditing] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [formData, setFormData] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    address: ""
   })
-  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = () => {
-    setIsSaving(true)
-    // Simulate API call
-    setTimeout(() => {
-      setIsSaving(false)
-    }, 1000)
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        full_name: user.user_metadata?.full_name || "",
+        email: user.email || "",
+        phone: user.user_metadata?.phone || "",
+        address: user.user_metadata?.address || ""
+      })
+    }
+  }, [user])
+
+  const handleSave = async () => {
+    // Lógica para salvar os dados do perfil (a ser implementada)
+    console.log("Salvando dados:", formData)
+    setIsEditing(false)
+  }
+
+  const handleCancel = () => {
+    if (user) {
+      setFormData({
+        full_name: user.user_metadata?.full_name || "",
+        email: user.email || "",
+        phone: user.user_metadata?.phone || "",
+        address: user.user_metadata?.address || ""
+      })
+    }
+    setIsEditing(false)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-text-gray">Carregando perfil...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-medium">Settings</h1>
-        <button className="btn-primary bg-secondary flex items-center text-sm" onClick={handleSave} disabled={isSaving}>
-          <Save className="h-5 w-5 mr-2" />
-          {isSaving ? "Saving..." : "Save Changes"}
-        </button>
-      </div>
+    <>
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Header */}
+          <div className="flex justify-between items-center p-6 border-b border-gray-200">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Perfil do Administrador</h1>
+              <p className="text-gray-600 mt-1">Gerencie suas informações pessoais</p>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={handleSave}
+                    className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  >
+                    <Save className="w-4 h-4 mr-2" />
+                    Salvar
+                  </button>
+                  <button
+                    onClick={handleCancel}
+                    className="flex items-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Editar
+                </button>
+              )}
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1">
-        {/* Sidebar */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-border overflow-hidden">
-            <nav className="flex flex-col">
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "general" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("general")}
-              >
-                <Globe className={`h-5 w-5 mr-3 ${activeTab === "general" ? "text-secondary" : "text-gray-500"}`} />
-                <span className={activeTab === "general" ? "font-medium" : ""}>General</span>
-              </button>
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "notifications" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("notifications")}
-              >
-                <Bell
-                  className={`h-5 w-5 mr-3 ${activeTab === "notifications" ? "text-secondary" : "text-gray-500"}`}
-                />
-                <span className={activeTab === "notifications" ? "font-medium" : ""}>Notifications</span>
-              </button>
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "security" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("security")}
-              >
-                <Lock className={`h-5 w-5 mr-3 ${activeTab === "security" ? "text-secondary" : "text-gray-500"}`} />
-                <span className={activeTab === "security" ? "font-medium" : ""}>Security</span>
-              </button>
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "privacy" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("privacy")}
-              >
-                <Shield className={`h-5 w-5 mr-3 ${activeTab === "privacy" ? "text-secondary" : "text-gray-500"}`} />
-                <span className={activeTab === "privacy" ? "font-medium" : ""}>Privacy</span>
-              </button>
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "billing" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("billing")}
-              >
-                <CreditCard
-                  className={`h-5 w-5 mr-3 ${activeTab === "billing" ? "text-secondary" : "text-gray-500"}`}
-                />
-                <span className={activeTab === "billing" ? "font-medium" : ""}>Billing</span>
-              </button>
-              <button
-                className={`flex items-center px-4 py-3 text-left ${activeTab === "email" ? "bg-secondary/10 border-l-4 border-secondary" : "hover:bg-gray-50"}`}
-                onClick={() => setActiveTab("email")}
-              >
-                <Mail className={`h-5 w-5 mr-3 ${activeTab === "email" ? "text-secondary" : "text-gray-500"}`} />
-                <span className={activeTab === "email" ? "font-medium" : ""}>Email</span>
-              </button>
-            </nav>
+          {/* Profile Content */}
+          <div className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Avatar Section */}
+              <div className="lg:col-span-1">
+                <div className="text-center">
+                  <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <User className="w-16 h-16 text-gray-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    {user?.user_metadata?.full_name || "Administrador"}
+                  </h2>
+                  <p className="text-gray-600 flex items-center justify-center mt-2">
+                    <Shield className="w-4 h-4 mr-2" />
+                    Admin
+                  </p>
+                  <button className="mt-4 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors">
+                    Alterar Foto
+                  </button>
+                </div>
+              </div>
+
+              {/* Form Section */}
+              <div className="lg:col-span-2">
+                <div className="space-y-6">
+                  {/* Personal Information */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Informações Pessoais</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Nome Completo
+                        </label>
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={formData.full_name}
+                            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        ) : (
+                          <p className="text-gray-900 py-2">
+                            {user?.user_metadata?.full_name || "Não informado"}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Função</label>
+                        <p className="text-gray-900 py-2 capitalize">Admin</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Informações de Contato</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Email
+                        </label>
+                        <div className="flex items-center">
+                          <Mail className="w-5 h-5 text-gray-400 mr-3" />
+                          <p className="text-gray-900 py-2">{user?.email}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Telefone
+                        </label>
+                        <div className="flex items-center">
+                          <Phone className="w-5 h-5 text-gray-400 mr-3" />
+                          {isEditing ? (
+                            <input
+                              type="tel"
+                              value={formData.phone}
+                              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                            />
+                          ) : (
+                            <p className="text-gray-900 py-2">{user?.user_metadata?.phone || "Não informado"}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Endereço
+                        </label>
+                        <div className="flex items-center">
+                          <MapPin className="w-5 h-5 text-gray-400 mr-3" />
+                           {isEditing ? (
+                            <input
+                              type="text"
+                              value={formData.address}
+                              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                            />
+                          ) : (
+                            <p className="text-gray-900 py-2">{user?.user_metadata?.address || "Não informado"}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-4">Segurança</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          ID do Usuário
+                        </label>
+                        <p className="text-gray-500 text-sm font-mono bg-gray-50 p-2 rounded">
+                          {user?.id || "ID não disponível"}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        Alterar Senha
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-
-        {/* Content */}
-        <div className="lg:col-span-3">
-          {activeTab === "general" && (
-            <div className="bg-white rounded-lg border border-border p-6">
-              <h2 className="text-base font-medium mb-6">General Settings</h2>
-
-              {/* Company Information */}
-              <div className="mb-8">
-                <h3 className="text-sm font-medium mb-4">Company Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Company Name</label>
-                    <input type="text" className="w-full p-2 border rounded-md" defaultValue="AZ Transfer" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Business Email</label>
-                    <input type="email" className="w-full p-2 border rounded-md" defaultValue="info@aztransfer.com" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Phone Number</label>
-                    <input type="tel" className="w-full p-2 border rounded-md" defaultValue="+1 (347) 848-7765" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Website</label>
-                    <input type="url" className="w-full p-2 border rounded-md" defaultValue="https://aztransfer.com" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Language Settings */}
-              <div className="mb-8">
-                <h3 className="text-sm font-medium mb-4">Language & Region</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Language</label>
-                    <select
-                      className="w-full p-2 border rounded-md"
-                      value={language}
-                      onChange={(e) => setLanguage(e.target.value)}
-                    >
-                      <option value="en">English</option>
-                      <option value="es">Español</option>
-                      <option value="pt">Português</option>
-                    </select>
-                    <p className="text-3xs text-gray-500 mt-1">This will change the language for the admin dashboard</p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Time Zone</label>
-                    <select className="w-full p-2 border rounded-md">
-                      <option>America/New_York (UTC-05:00)</option>
-                      <option>America/Chicago (UTC-06:00)</option>
-                      <option>America/Los_Angeles (UTC-08:00)</option>
-                      <option>Europe/London (UTC+00:00)</option>
-                      <option>Europe/Paris (UTC+01:00)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Date & Currency Format */}
-              <div>
-                <h3 className="text-sm font-medium mb-4">Date & Currency Format</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Date Format</label>
-                    <select className="w-full p-2 border rounded-md">
-                      <option>MM/DD/YYYY</option>
-                      <option>DD/MM/YYYY</option>
-                      <option>YYYY-MM-DD</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Currency</label>
-                    <select className="w-full p-2 border rounded-md">
-                      <option>USD ($)</option>
-                      <option>EUR (€)</option>
-                      <option>GBP (£)</option>
-                      <option>BRL (R$)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "notifications" && (
-            <div className="bg-white rounded-lg border border-border p-6">
-              <h2 className="text-base font-medium mb-6">Notification Settings</h2>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                  <div>
-                    <h3 className="text-sm font-medium">Email Notifications</h3>
-                    <p className="text-xs text-gray-500">Receive notifications via email</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={notifications.email}
-                      onChange={() => setNotifications({ ...notifications, email: !notifications.email })}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-secondary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                  <div>
-                    <h3 className="text-sm font-medium">Browser Notifications</h3>
-                    <p className="text-xs text-gray-500">Receive notifications in your browser</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={notifications.browser}
-                      onChange={() => setNotifications({ ...notifications, browser: !notifications.browser })}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-secondary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-                  </label>
-                </div>
-
-                <div className="flex items-center justify-between p-4 border rounded-md">
-                  <div>
-                    <h3 className="text-sm font-medium">Mobile Push Notifications</h3>
-                    <p className="text-xs text-gray-500">Receive notifications on your mobile device</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="sr-only peer"
-                      checked={notifications.mobile}
-                      onChange={() => setNotifications({ ...notifications, mobile: !notifications.mobile })}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-secondary/20 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "security" && (
-            <div className="bg-white rounded-lg border border-border p-6">
-              <h2 className="text-base font-medium mb-6">Security Settings</h2>
-
-              {/* Change Password */}
-              <div className="mb-8">
-                <h3 className="text-sm font-medium mb-4">Change Password</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Current Password</label>
-                    <input type="password" className="w-full p-2 border rounded-md" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">New Password</label>
-                    <input type="password" className="w-full p-2 border rounded-md" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-1">Confirm New Password</label>
-                    <input type="password" className="w-full p-2 border rounded-md" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Two-Factor Authentication */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium">Two-Factor Authentication</h3>
-                  <button className="px-3 py-1 text-sm bg-secondary text-white rounded">Enable</button>
-                </div>
-                <p className="text-sm text-gray-500">
-                  Add an extra layer of security to your account by requiring both your password and a verification code
-                  from your mobile phone.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {(activeTab === "privacy" || activeTab === "billing" || activeTab === "email") && (
-            <div className="bg-white rounded-lg border border-border p-6 flex items-center justify-center h-64">
-              <p className="text-xs text-gray-500">This section is under development</p>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
+      <ChangePasswordModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+    </>
   )
 }
