@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { User, Edit, Save, X, Phone, Mail, MapPin, Shield } from "lucide-react"
 import { useAdmin } from "@/hooks/useAdmin"
 import ChangePasswordModal from "@/components/change-password-modal"
+import { supabase } from "@/lib/supabase"
+import { ImageUpload } from "@/components/ImageUpload"
 
 export default function SettingsPage() {
   const { user, isLoading } = useAdmin()
@@ -13,8 +15,12 @@ export default function SettingsPage() {
     full_name: "",
     email: "",
     phone: "",
-    address: ""
+    address: "",
+    avatar_url: ""
   })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   useEffect(() => {
     if (user) {
@@ -22,15 +28,33 @@ export default function SettingsPage() {
         full_name: user.user_metadata?.full_name || "",
         email: user.email || "",
         phone: user.user_metadata?.phone || "",
-        address: user.user_metadata?.address || ""
+        address: user.user_metadata?.address || "",
+        avatar_url: user.user_metadata?.avatar_url || ""
       })
     }
   }, [user])
 
   const handleSave = async () => {
-    // Lógica para salvar os dados do perfil (a ser implementada)
-    console.log("Salvando dados:", formData)
-    setIsEditing(false)
+    setSaving(true)
+    setError("")
+    setSuccess("")
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: formData.full_name,
+          phone: formData.phone,
+          address: formData.address,
+          avatar_url: formData.avatar_url,
+        },
+      })
+      if (error) throw error
+      setSuccess("Dados atualizados com sucesso!")
+      setIsEditing(false)
+    } catch (err: any) {
+      setError(err.message || "Erro ao salvar dados.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleCancel = () => {
@@ -39,7 +63,8 @@ export default function SettingsPage() {
         full_name: user.user_metadata?.full_name || "",
         email: user.email || "",
         phone: user.user_metadata?.phone || "",
-        address: user.user_metadata?.address || ""
+        address: user.user_metadata?.address || "",
+        avatar_url: user.user_metadata?.avatar_url || ""
       })
     }
     setIsEditing(false)
@@ -102,8 +127,18 @@ export default function SettingsPage() {
               {/* Avatar Section */}
               <div className="lg:col-span-1">
                 <div className="text-center">
-                  <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <User className="w-16 h-16 text-gray-400" />
+                  <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                    {isEditing ? (
+                      <ImageUpload
+                        value={formData.avatar_url}
+                        onChange={url => setFormData({ ...formData, avatar_url: url })}
+                        onError={msg => setError(msg)}
+                      />
+                    ) : formData.avatar_url ? (
+                      <img src={formData.avatar_url} alt="Avatar" className="object-cover w-32 h-32 rounded-full" />
+                    ) : (
+                      <User className="w-16 h-16 text-gray-400" />
+                    )}
                   </div>
                   <h2 className="text-xl font-semibold text-gray-900">
                     {user?.user_metadata?.full_name || "Administrador"}
@@ -228,6 +263,16 @@ export default function SettingsPage() {
         </div>
       </div>
       <ChangePasswordModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      {saving && (
+        <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+          {error && (
+            <p className="text-red-500 mb-4">{error}</p>
+          )}
+          {success && (
+            <p className="text-green-500">{success}</p>
+          )}
+        </div>
+      )}
     </>
   )
 }

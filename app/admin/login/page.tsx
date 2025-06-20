@@ -35,7 +35,7 @@ export default function AdminLogin() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center mb-4">
-            <img src="/images/az-logo.png" alt="AZ Transfer" className="h-24 w-auto" />
+            <img src="/img/logo.png" alt="AZ Transfer" className="h-24 w-auto" />
           </div>
           <h2 className="text-2xl font-medium font-dm-sans text-text-dark mb-3 mt-2">Painel Administrativo</h2>
           <p className="text-text-gray text-sm">Faça login para acessar o sistema</p>

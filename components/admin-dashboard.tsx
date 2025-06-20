@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import type { User } from "@supabase/supabase-js"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -17,14 +18,16 @@ import {
   DollarSign,
   BarChart3,
   ChevronDown,
+  User as UserIcon,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 
-export default function AdminDashboard({
-  children,
-}: {
+interface AdminDashboardProps {
   children: React.ReactNode
-}) {
+  user: User
+}
+
+export default function AdminDashboard({ children, user }: AdminDashboardProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const { locale, translations } = useLanguage()
@@ -68,7 +71,7 @@ export default function AdminDashboard({
           <div className="mb-8">
             <div className="relative h-10 w-10 rounded-full bg-white flex items-center justify-center overflow-hidden">
               <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/AZ_Transfer_Logo-2114669%20%281%29-B2wSNbPiBfGCv1l8HXV55FJExLAfx1.webp"
+                src="/img/logo.png"
                 alt="AZ Transfer Logo"
                 fill
                 className="object-contain p-2"
@@ -269,13 +272,17 @@ export default function AdminDashboard({
                   aria-haspopup="true"
                 >
                   <div className="w-8 h-8 rounded-full bg-background-light flex items-center justify-center overflow-hidden">
-                    <Image
-                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop"
-                      alt="User profile"
-                      width={32}
-                      height={32}
-                      className="object-cover"
-                    />
+                    {user?.user_metadata?.avatar_url ? (
+                      <Image
+                        src={user.user_metadata.avatar_url}
+                        alt="User profile"
+                        width={32}
+                        height={32}
+                        className="object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="w-6 h-6 text-gray-400" />
+                    )}
                   </div>
                   <span className="ml-2 text-sm font-medium hidden md:block">Admin</span>
                   <ChevronDown

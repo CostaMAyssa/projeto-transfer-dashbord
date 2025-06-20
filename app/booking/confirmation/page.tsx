@@ -58,7 +58,7 @@ export default function BookingConfirmationPage() {
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <div className="relative w-[100px] h-8">
             <Image
-              src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/AZ_Transfer_Logo-2114669%20%281%29-B2wSNbPiBfGCv1l8HXV55FJExLAfx1.webp"
+              src="/img/logo.png"
               alt="AZ Transfer Logo"
               fill
               className="object-contain"

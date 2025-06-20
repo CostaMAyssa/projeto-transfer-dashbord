@@ -6,6 +6,7 @@ import { useRouter, usePathname } from "next/navigation"
 import { LanguageProvider } from "@/contexts/language-context"
 import AdminDashboard from "@/components/admin-dashboard"
 import { useAdmin } from "@/hooks/useAdmin"
+import Head from "next/head"
 
 export default function AdminLayout({
   children,
@@ -42,7 +43,10 @@ export default function AdminLayout({
   if (user) {
     return (
       <LanguageProvider>
-        <AdminDashboard>{children}</AdminDashboard>
+        <Head>
+          <link rel="icon" href="/img/favicon.png" />
+        </Head>
+        <AdminDashboard user={user}>{children}</AdminDashboard>
       </LanguageProvider>
     )
   }
