@@ -205,4 +205,38 @@ export function useTodayBookings() {
       vehicle_type: booking.vehicles?.type || null
     }))
   })
+}
+
+export function useAllBookings() {
+  return useSWR('all_bookings', async () => {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        pickup_location,
+        dropoff_location,
+        pickup_date,
+        pickup_time,
+        total_amount,
+        status,
+        payment_status,
+        user_id,
+        created_at,
+        vehicle_id,
+        vehicles:vehicle_id (
+          id,
+          name,
+          type
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return data?.map(booking => ({
+      ...booking,
+      vehicle_name: booking.vehicles?.name || null,
+      vehicle_type: booking.vehicles?.type || null
+    }))
+  })
 } 

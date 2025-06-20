@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { Search, ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, Plus, User } from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User } from "lucide-react"
 import { useBookings, updateBookingStatus } from "@/hooks/useBookings"
 import { mutate } from "swr"
 
 export default function BookingsPage() {
   const { data: bookings, error, isLoading } = useBookings()
-  const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("All")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(5)
@@ -41,12 +40,9 @@ export default function BookingsPage() {
     )
   }
 
-  // Filter bookings based on search term and status
+  // Filter bookings based on status only
   const filteredBookings = bookings?.filter(
     (booking) =>
-      (booking.pickup_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.dropoff_location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        booking.id.toLowerCase().includes(searchTerm.toLowerCase())) &&
       (statusFilter === "All" || booking.status === statusFilter.toLowerCase()),
   ) || []
 
@@ -144,29 +140,11 @@ export default function BookingsPage() {
         <div>
           <h1 className="text-2xl font-medium">Reservas</h1>
         </div>
-        <div className="flex items-center space-x-2">
-          <button className="btn-primary bg-secondary flex items-center text-sm">
-            <Plus className="h-5 w-5 mr-2" />
-            Nova Reserva
-          </button>
-        </div>
       </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Buscar reservas..."
-              className="pl-10 pr-4 py-2 border rounded-lg w-full focus:outline-none focus:ring-2 focus:ring-[#E95440] focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
           <div className="flex items-center gap-2">
             <select
               className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"

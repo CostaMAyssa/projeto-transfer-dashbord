@@ -16,7 +16,6 @@ import {
   X,
   DollarSign,
   BarChart3,
-  Search,
   ChevronDown,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
@@ -261,14 +260,6 @@ export default function AdminDashboard({
           </div>
 
           <div className="ml-auto flex items-center space-x-4">
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-text-gray" />
-              <input
-                type="text"
-                placeholder={translations.common.search}
-                className="input-standard pl-8 py-1.5 text-sm w-40"
-              />
-            </div>
             <div className="flex items-center relative">
               <div ref={dropdownRef}>
                 <button

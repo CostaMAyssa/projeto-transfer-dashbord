@@ -17,17 +17,21 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { useDashboardStats, useRecentBookings, useUpcomingBookings, useTodayBookings } from "@/hooks/useDashboardStats"
+import { useBookings } from "@/hooks/useBookings"
 
 export default function AdminDashboard() {
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [currentDate, setCurrentDate] = useState(new Date())
   const { data: stats, error: statsError, isLoading: statsLoading } = useDashboardStats()
   const { data: recentBookings, error: recentError, isLoading: recentLoading } = useRecentBookings()
   const { data: upcomingBookings, error: upcomingError, isLoading: upcomingLoading } = useUpcomingBookings()
   const { data: todayBookings, error: todayError, isLoading: todayLoading } = useTodayBookings()
+  const { data: allBookings } = useBookings()
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'GBP',
+      currency: 'USD',
       minimumFractionDigits: 2
     }).format(amount)
   }
@@ -74,6 +78,65 @@ export default function AdminDashboard() {
     }
   }
 
+  // Funções do calendário
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
+  }
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay()
+  }
+
+  const generateCalendarDays = () => {
+    const daysInMonth = getDaysInMonth(currentDate)
+    const firstDay = getFirstDayOfMonth(currentDate)
+    const days = []
+
+    // Dias em branco no início
+    for (let i = 0; i < firstDay; i++) {
+      days.push(null)
+    }
+
+    // Dias do mês
+    for (let day = 1; day <= daysInMonth; day++) {
+      days.push(day)
+    }
+
+    return days
+  }
+
+  const getBookingsForDate = (day: number) => {
+    if (!allBookings || !day) return []
+    
+    const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    
+    return allBookings.filter(booking => booking.pickup_date === dateString)
+  }
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    setCurrentDate(prev => {
+      const newDate = new Date(prev)
+      if (direction === 'prev') {
+        newDate.setMonth(prev.getMonth() - 1)
+      } else {
+        newDate.setMonth(prev.getMonth() + 1)
+      }
+      return newDate
+    })
+  }
+
+  const isToday = (day: number) => {
+    if (!day) return false
+    const today = new Date()
+    return today.getDate() === day && 
+           today.getMonth() === currentDate.getMonth() && 
+           today.getFullYear() === currentDate.getFullYear()
+  }
+
+  const formatCalendarDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  }
+
   if (statsLoading || recentLoading || upcomingLoading || todayLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -99,14 +162,6 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <div></div> {/* Empty div to maintain the flex layout */}
-        <Link href="/admin/bookings/new" className="btn-primary bg-secondary flex items-center text-sm">
-          <Plus className="h-5 w-5 mr-2" />
-          Nova Reserva
-        </Link>
-      </div>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-background-white rounded border border-border p-6">
@@ -184,48 +239,102 @@ export default function AdminDashboard() {
       {/* Calendar Section */}
       <div className="bg-background-white rounded border border-border p-6 mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-medium font-dm-sans">Agenda de Hoje</h2>
+          <h2 className="text-lg font-medium font-dm-sans">
+            {showCalendar ? 'Calendário de Reservas' : 'Agenda de Hoje'}
+          </h2>
           <div className="flex space-x-2">
-            <button className="px-3 py-1 text-sm bg-secondary text-white rounded">Hoje</button>
-            <Link href="/admin/calendar" className="px-3 py-1 text-sm bg-background-light text-text-gray rounded hover:bg-gray-200">
+            <button 
+              onClick={() => setShowCalendar(false)}
+              className={`px-3 py-1 text-sm rounded ${!showCalendar ? 'bg-secondary text-white' : 'bg-background-light text-text-gray hover:bg-gray-200'}`}
+            >
+              Hoje
+            </button>
+            <button 
+              onClick={() => setShowCalendar(true)}
+              className={`px-3 py-1 text-sm rounded ${showCalendar ? 'bg-secondary text-white' : 'bg-background-light text-text-gray hover:bg-gray-200'}`}
+            >
               Calendário
-            </Link>
+            </button>
           </div>
         </div>
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-dm-sans">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
-        </div>
-        <div className="border border-border rounded p-4 bg-white">
-          <div className="space-y-3">
-            {todayBookings && todayBookings.length > 0 ? (
-              todayBookings.map((booking) => (
-                <Link key={booking.id} href={`/admin/bookings/${booking.id}`}>
-                  <div className="bg-blue-50 p-3 rounded-md border-l-4 border-blue-500 hover:bg-blue-100 transition-colors">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-sm">{booking.pickup_location} → {booking.dropoff_location}</p>
-                        <p className="text-xs text-gray-500">{booking.vehicle_name || 'Veículo não definido'}</p>
+        
+        {showCalendar ? (
+          // Vista do Calendário Completo
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <button onClick={() => navigateMonth('prev')} className="p-2 rounded-full hover:bg-gray-100">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <h3 className="text-lg font-dm-sans capitalize">{formatCalendarDate(currentDate)}</h3>
+              <button onClick={() => navigateMonth('next')} className="p-2 rounded-full hover:bg-gray-100">
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 text-center text-sm text-gray-500 mb-2">
+              {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => <div key={day}>{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {generateCalendarDays().map((day, index) => (
+                <div key={index} className={`h-32 border rounded p-2 text-sm ${day ? '' : 'bg-gray-50'}`}>
+                  {day && (
+                    <>
+                      <span className={`flex items-center justify-center h-6 w-6 rounded-full ${isToday(day) ? 'bg-secondary text-white' : ''}`}>
+                        {day}
+                      </span>
+                      <div className="mt-1 space-y-1 overflow-y-auto max-h-20">
+                        {getBookingsForDate(day).map(booking => (
+                          <Link key={booking.id} href={`/admin/bookings/${booking.id}`}>
+                            <div className="text-xs bg-blue-100 text-blue-800 p-1 rounded hover:bg-blue-200 truncate">
+                              {booking.pickup_location.split(',')[0]}
+                            </div>
+                          </Link>
+                        ))}
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mb-1">
-                          {formatTime(booking.pickup_time)}
-                        </span>
-                        <span className={`text-xs px-2 py-1 rounded ${getStatusColor(booking.status)}`}>
-                          {getStatusText(booking.status)}
-                        </span>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          // Vista da Agenda de Hoje
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-dm-sans">{new Date().toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h3>
+            </div>
+            <div className="border border-border rounded p-4 bg-white">
+              <div className="space-y-3">
+                {todayBookings && todayBookings.length > 0 ? (
+                  todayBookings.map((booking) => (
+                    <Link key={booking.id} href={`/admin/bookings/${booking.id}`}>
+                      <div className="bg-blue-50 p-3 rounded-md border-l-4 border-blue-500 hover:bg-blue-100 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-sm">{booking.pickup_location} → {booking.dropoff_location}</p>
+                            <p className="text-xs text-gray-500">{booking.vehicle_name || 'Veículo não definido'}</p>
+                          </div>
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded mb-1">
+                              {formatTime(booking.pickup_time)}
+                            </span>
+                            <span className={`text-xs px-2 py-1 rounded ${getStatusColor(booking.status)}`}>
+                              {getStatusText(booking.status)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    </Link>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                    <p>Nenhuma reserva para hoje</p>
                   </div>
-                </Link>
-              ))
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Nenhuma reserva para hoje</p>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Recent Bookings & Upcoming Bookings */}
