@@ -24,7 +24,7 @@ import { useLanguage } from "@/contexts/language-context"
 
 interface AdminDashboardProps {
   children: React.ReactNode
-  user: User
+  user: User | null
 }
 
 export default function AdminDashboard({ children, user }: AdminDashboardProps) {
