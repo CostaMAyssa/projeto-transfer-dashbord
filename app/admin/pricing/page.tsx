@@ -22,13 +22,17 @@ export default function PricingPage() {
     vehicle_type: "",
     base_price: 0,
     price_per_km: 0,
-    currency: "GBP",
+    currency: "USD",
   })
   
   const [editedService, setEditedService] = useState({
     name: "",
     price: 0,
     description: "",
+    name_en: "",
+    name_es: "",
+    description_en: "",
+    description_es: "",
   })
 
   if (pricingLoading || extrasLoading) {
@@ -93,6 +97,10 @@ export default function PricingPage() {
       name: service.name,
       price: service.price,
       description: service.description || "",
+      name_en: service.name_en || "",
+      name_es: service.name_es || "",
+      description_en: service.description_en || "",
+      description_es: service.description_es || "",
     })
   }
 
@@ -147,7 +155,7 @@ export default function PricingPage() {
         vehicle_type: "",
         base_price: 0,
         price_per_km: 0,
-        currency: "GBP",
+        currency: "USD",
       })
     } catch (error) {
       console.error('Erro ao criar preço:', error)
@@ -168,6 +176,10 @@ export default function PricingPage() {
         name: "",
         price: 0,
         description: "",
+        name_en: "",
+        name_es: "",
+        description_en: "",
+        description_es: "",
       })
     } catch (error) {
       console.error('Erro ao criar serviço:', error)
@@ -197,7 +209,7 @@ export default function PricingPage() {
             </button>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-96 overflow-y-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
@@ -406,7 +418,7 @@ export default function PricingPage() {
                       onChange={(e) => setEditedService({ ...editedService, price: parseFloat(e.target.value) })}
                     />
                   ) : (
-                    <span className="text-lg font-bold text-[#E95440]">£{service.price.toFixed(2)}</span>
+                    <span className="text-lg font-bold text-[#E95440]">${service.price.toFixed(2)}</span>
                   )}
                 </div>
               </div>
@@ -456,7 +468,7 @@ export default function PricingPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Preço Base (£)</label>
+                  <label className="block text-sm font-medium mb-1">Preço Base ($)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -467,7 +479,7 @@ export default function PricingPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Preço por km (£)</label>
+                  <label className="block text-sm font-medium mb-1">Preço por km ($)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -501,40 +513,107 @@ export default function PricingPage() {
       {/* Add Service Modal */}
       {showAddServiceModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-medium mb-4">Adicionar Serviço Extra</h2>
               <form onSubmit={handleAddService} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Nome do Serviço</label>
-                  <input
-                    type="text"
-                    required
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
-                    value={editedService.name}
-                    onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
-                  />
+                {/* Campos obrigatórios em Português */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-gray-800">Informações Principais (Português)</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nome do Serviço *</label>
+                      <input
+                        type="text"
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                        value={editedService.name}
+                        onChange={(e) => setEditedService({ ...editedService, name: e.target.value })}
+                        placeholder="Nome do Serviço"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Descrição *</label>
+                      <textarea
+                        rows={3}
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                        value={editedService.description}
+                        onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
+                        placeholder="Descrição"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Preço ($) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                        value={editedService.price}
+                        onChange={(e) => setEditedService({ ...editedService, price: parseFloat(e.target.value) })}
+                        placeholder="Preço ($)"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Descrição</label>
-                  <textarea
-                    rows={3}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
-                    value={editedService.description}
-                    onChange={(e) => setEditedService({ ...editedService, description: e.target.value })}
-                  />
+
+                {/* Campos opcionais de tradução */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-blue-800">Traduções (Opcional)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Inglês */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-blue-700">Inglês</h4>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Nome em Inglês</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                          value={editedService.name_en}
+                          onChange={(e) => setEditedService({ ...editedService, name_en: e.target.value })}
+                          placeholder="Nome em Inglês (opcional)"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Descrição em Inglês</label>
+                        <textarea
+                          rows={3}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                          value={editedService.description_en}
+                          onChange={(e) => setEditedService({ ...editedService, description_en: e.target.value })}
+                          placeholder="Descrição em Inglês (opcional)"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Espanhol */}
+                    <div className="space-y-3">
+                      <h4 className="font-medium text-blue-700">Espanhol</h4>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Nome em Espanhol</label>
+                        <input
+                          type="text"
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                          value={editedService.name_es}
+                          onChange={(e) => setEditedService({ ...editedService, name_es: e.target.value })}
+                          placeholder="Nome em Espanhol (opcional)"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Descrição em Espanhol</label>
+                        <textarea
+                          rows={3}
+                          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
+                          value={editedService.description_es}
+                          onChange={(e) => setEditedService({ ...editedService, description_es: e.target.value })}
+                          placeholder="Descrição em Espanhol (opcional)"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Preço (£)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
-                    value={editedService.price}
-                    onChange={(e) => setEditedService({ ...editedService, price: parseFloat(e.target.value) })}
-                  />
-                </div>
+
                 <div className="flex justify-end gap-2 pt-4">
                   <button
                     type="button"

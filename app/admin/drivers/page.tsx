@@ -284,7 +284,7 @@ export default function DriversPage() {
                 )}
                 {driver.license_number && (
                   <div className="flex items-center">
-                    <span className="font-medium mr-2">CNH:</span>
+                    <span className="font-medium mr-2">Driver's License:</span>
                     {driver.license_number}
                   </div>
                 )}
@@ -375,7 +375,7 @@ export default function DriversPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Número da CNH</label>
+                  <label className="block text-sm font-medium mb-1">Driver's License Number</label>
                   <input
                     type="text"
                     required
@@ -478,7 +478,7 @@ export default function DriversPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Número da CNH</label>
+                  <label className="block text-sm font-medium mb-1">Driver's License Number</label>
                   <input
                     type="text"
                     required
