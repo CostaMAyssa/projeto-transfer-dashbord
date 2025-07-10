@@ -559,12 +559,12 @@ export default function PricingPage() {
                 </div>
 
                 {/* Campos opcionais de tradução */}
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h3 className="text-lg font-medium mb-3 text-blue-800">Traduções (Opcional)</h3>
+                <div className="p-4 rounded-lg">
+                  <h3 className="text-lg font-medium mb-3 text-gray-800">Traduções</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Inglês */}
                     <div className="space-y-3">
-                      <h4 className="font-medium text-blue-700">Inglês</h4>
+                      <h4 className="font-medium text-gray-700">Inglês</h4>
                       <div>
                         <label className="block text-sm font-medium mb-1">Nome em Inglês</label>
                         <input
@@ -589,7 +589,7 @@ export default function PricingPage() {
 
                     {/* Espanhol */}
                     <div className="space-y-3">
-                      <h4 className="font-medium text-blue-700">Espanhol</h4>
+                      <h4 className="font-medium text-gray-700">Espanhol</h4>
                       <div>
                         <label className="block text-sm font-medium mb-1">Nome em Espanhol</label>
                         <input
