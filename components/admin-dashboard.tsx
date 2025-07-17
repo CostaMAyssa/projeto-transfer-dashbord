@@ -21,6 +21,7 @@ import {
   User as UserIcon,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
+import { logout } from "@/hooks/useAdmin"
 
 interface AdminDashboardProps {
   children: React.ReactNode
@@ -47,10 +48,17 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
     }
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("admin_authenticated")
-    localStorage.removeItem("admin_auth_time")
-    window.location.href = "/admin/login"
+  const handleLogout = async () => {
+    try {
+      await logout()
+      window.location.href = "/admin/login"
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error)
+      // Fallback para logout manual
+      localStorage.removeItem("admin_authenticated")
+      localStorage.removeItem("admin_auth_time")
+      window.location.href = "/admin/login"
+    }
   }
 
   return (
