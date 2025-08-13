@@ -96,6 +96,11 @@ export default function AdminLogin() {
                   )}
                 </button>
               </div>
+              <div className="mt-2 text-right">
+                <a href="/admin/reset-password" className="text-sm text-secondary hover:underline">
+                  Esqueci minha senha
+                </a>
+              </div>
             </div>
 
             {error && (

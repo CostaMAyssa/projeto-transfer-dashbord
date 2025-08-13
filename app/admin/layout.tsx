@@ -21,8 +21,12 @@ export default function AdminLayout({
     setMounted(true)
   }, [])
 
-  // Se estiver na página de login, renderize diretamente
-  if (pathname === "/admin/login") {
+  // Páginas que não precisam de autenticação
+  const publicPages = ["/admin/login", "/admin/reset-password", "/admin/update-password"]
+  const isPublicPage = publicPages.includes(pathname)
+
+  // Se estiver em uma página pública, renderize diretamente
+  if (isPublicPage) {
     return <LanguageProvider>{children}</LanguageProvider>
   }
 
