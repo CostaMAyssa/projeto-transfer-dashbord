@@ -1,7 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useZones } from "@/hooks/useZones"
+import { useVehicleCategories } from "@/hooks/useVehicleCategories"
+import { useZonePricing } from "@/hooks/useZonePricing"
+import { useExtras } from "@/hooks/useExtras"
+import { AddressAutocomplete } from "@/components/AddressAutocomplete"
+import { detectZone } from "@/lib/zone-pricing"
+import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete"
 import { 
   ArrowLeft,
   Save,
@@ -12,7 +19,9 @@ import {
   Car,
   Calendar,
   Clock,
-  DollarSign
+  DollarSign,
+  Plus,
+  Minus
 } from "lucide-react"
 
 export default function NewQuotePage() {
@@ -23,106 +32,434 @@ export default function NewQuotePage() {
     customer_phone: "",
     
     // Dados do trajeto
+    quote_type: "one-way" as "one-way" | "round-trip" | "hourly",
+    pickup_zone_id: "",
     pickup_address: "",
+    pickup_coordinates: null as [number, number] | null,
     pickup_date: "",
     pickup_time: "",
+    destination_zone_id: "",
     destination_address: "",
+    destination_coordinates: null as [number, number] | null,
+    // Round-trip
+    return_date: "",
+    return_time: "",
+    trip_duration_days: 0,
+    return_pickup_address: "",
+    return_pickup_coordinates: null as [number, number] | null,
+    return_pickup_zone_id: "",
+    return_destination_address: "",
+    return_destination_coordinates: null as [number, number] | null,
+    return_destination_zone_id: "",
+    // Hourly
+    service_hours: 2,
+    airport_destination: "",
+    airport_destination_coordinates: null as [number, number] | null,
+    service_type: "" as "airport-dropoff" | "airport-pickup" | "",
+    airline: "",
+    flight_number: "",
+    no_flight_info: false,
     
     // Dados do veículo
-    vehicle_type: "",
+    vehicle_category_id: "",
     passengers: 1,
-    luggage: 0,
+    luggage_large: 0,
+    luggage_small: 0,
     
     // Preços
     base_price: 0,
-    distance_km: 0,
-    price_per_km: 0,
-    extras: [] as string[],
+    extras: {} as Record<string, number>, // { extraId: quantity }
     total_amount: 0,
     
     // Configurações
     expires_days: 7,
     notes: "",
-    include_return: false,
-    return_date: "",
-    return_time: ""
+
   })
 
-  const [isCalculating, setIsCalculating] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Mock data - será substituído por dados reais do Supabase
-  const vehicleTypes = [
-    { id: "standard", name: "Standard Sedan", base_price: 60, price_per_km: 2.50, capacity: 3 },
-    { id: "premium", name: "Premium Sedan", base_price: 80, price_per_km: 3.20, capacity: 3 },
-    { id: "suv", name: "SUV", base_price: 100, price_per_km: 4.00, capacity: 6 },
-    { id: "premium-suv", name: "Premium SUV", base_price: 150, price_per_km: 5.50, capacity: 6 },
-    { id: "van", name: "Van", base_price: 120, price_per_km: 4.50, capacity: 8 }
-  ]
+  // Hooks do Supabase
+  const { zones, loading: zonesLoading } = useZones()
+  const { categories, loading: categoriesLoading } = useVehicleCategories()
+  const { getPrice, loading: pricingLoading } = useZonePricing()
+  const { data: availableExtras, isLoading: extrasLoading } = useExtras()
 
-  const availableExtras = [
-    { id: "child-seat", name: "Cadeira para criança", price: 15 },
-    { id: "booster", name: "Assento elevatório", price: 12 },
-    { id: "wifi", name: "Wi-Fi durante viagem", price: 8 },
-    { id: "water", name: "Água e bebidas", price: 10 },
-    { id: "meet-greet", name: "Serviço Meet & Greet", price: 25 }
-  ]
+  // Função para detectar zona baseada nas coordenadas
+  const detectZoneFromCoordinates = async (lat: number, lng: number) => {
+    try {
+      const zoneResult = await detectZone(lat, lng)
+      return zoneResult.zone_id
+    } catch (error) {
+      console.error('Erro ao detectar zona:', error)
+      return null
+    }
+  }
 
-  const handleVehicleChange = (vehicleId: string) => {
-    const vehicle = vehicleTypes.find(v => v.id === vehicleId)
-    if (vehicle) {
+  // Função para buscar preço baseado nas zonas selecionadas
+  const getRouteBasePrice = (vehicleCategoryId: string, pickupZoneId: string, destinationZoneId: string) => {
+    console.log('🔍 getRouteBasePrice chamada:', {
+      vehicleCategoryId,
+      pickupZoneId,
+      destinationZoneId
+    })
+    
+    if (!pickupZoneId || !destinationZoneId || !vehicleCategoryId) {
+      console.log('❌ Parâmetros faltando:', { pickupZoneId, destinationZoneId, vehicleCategoryId })
+      return 0
+    }
+    
+    const price = getPrice(pickupZoneId, destinationZoneId, vehicleCategoryId)
+    console.log('💰 Preço da matriz:', price)
+    
+    if (price !== null) {
+      return price
+    }
+    
+    // Fallback para preço base da categoria
+    const category = categories.find(c => c.id === vehicleCategoryId)
+    const fallbackPrice = category?.base_price || 0
+    console.log('🔄 Fallback para categoria:', { category: category?.name, fallbackPrice })
+    
+    return fallbackPrice
+  }
+
+  const handleVehicleChange = (vehicleCategoryId: string) => {
+    const category = categories.find(c => c.id === vehicleCategoryId)
+    if (category) {
       setFormData(prev => ({
         ...prev,
-        vehicle_type: vehicleId,
-        base_price: vehicle.base_price,
-        price_per_km: vehicle.price_per_km
+        vehicle_category_id: vehicleCategoryId
       }))
       calculateTotal()
     }
   }
 
-  const calculateDistance = async () => {
-    setIsCalculating(true)
-    // Aqui você integraria com Google Maps API ou similar
-    setTimeout(() => {
-      const mockDistance = Math.floor(Math.random() * 50) + 10 // 10-60 km
+  // Função para calcular duração em dias
+  const calculateTripDuration = (pickupDate: string, returnDate: string) => {
+    if (!pickupDate || !returnDate) return 0
+    const pickup = new Date(pickupDate)
+    const returnD = new Date(returnDate)
+    const diffTime = Math.abs(returnD.getTime() - pickup.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    return diffDays
+  }
+
+  // Handler para aeroporto de destino na modalidade Hourly
+  const handleAirportDestinationPlaceSelect = async (place: any) => {
+    try {
+      // Garantir que temos lat/lng através do details
+      const details = await getAddressDetails(place.place_id)
+      const lat = details?.geometry?.location?.lat
+      const lng = details?.geometry?.location?.lng
+      
+      if (lat && lng) {
+        const zoneId = await detectZoneFromCoordinates(lat, lng)
+        setFormData(prev => ({
+          ...prev,
+          airport_destination: place.description,
+          airport_destination_coordinates: [lng, lat],
+          destination_zone_id: zoneId || ""
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          airport_destination: place.description,
+          destination_zone_id: ""
+        }))
+      }
+    } catch (error) {
+      console.error('Erro ao processar endereço do aeroporto:', error)
       setFormData(prev => ({
         ...prev,
-        distance_km: mockDistance
+        airport_destination: place.description,
+        destination_zone_id: ""
       }))
-      calculateTotal()
-      setIsCalculating(false)
-    }, 1500)
+    }
+  }
+
+  // Função para lidar com seleção de endereço de origem da volta
+  const handleReturnPickupPlaceSelect = async (place: any) => {
+    try {
+      const details = await getAddressDetails(place.place_id)
+      const lat = details?.geometry?.location?.lat
+      const lng = details?.geometry?.location?.lng
+      
+      if (lat && lng) {
+        const zoneId = await detectZoneFromCoordinates(lat, lng)
+        setFormData(prev => ({
+          ...prev,
+          return_pickup_address: place.description,
+          return_pickup_coordinates: [lng, lat],
+          return_pickup_zone_id: zoneId || ""
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          return_pickup_address: place.description,
+          return_pickup_zone_id: ""
+        }))
+      }
+    } catch (error) {
+      console.error('Erro ao processar endereço de origem da volta:', error)
+      setFormData(prev => ({
+        ...prev,
+        return_pickup_address: place.description,
+        return_pickup_zone_id: ""
+      }))
+    }
+  }
+
+  // Função para lidar com seleção de endereço de destino da volta
+  const handleReturnDestinationPlaceSelect = async (place: any) => {
+    try {
+      const details = await getAddressDetails(place.place_id)
+      const lat = details?.geometry?.location?.lat
+      const lng = details?.geometry?.location?.lng
+      
+      if (lat && lng) {
+        const zoneId = await detectZoneFromCoordinates(lat, lng)
+        setFormData(prev => ({
+          ...prev,
+          return_destination_address: place.description,
+          return_destination_coordinates: [lng, lat],
+          return_destination_zone_id: zoneId || ""
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          return_destination_address: place.description,
+          return_destination_zone_id: ""
+        }))
+      }
+    } catch (error) {
+      console.error('Erro ao processar endereço de destino da volta:', error)
+      setFormData(prev => ({
+        ...prev,
+        return_destination_address: place.description,
+        return_destination_zone_id: ""
+      }))
+    }
   }
 
   const calculateTotal = () => {
-    const { base_price, distance_km, price_per_km, include_return } = formData
-    const extrasTotal = formData.extras.reduce((sum, extraId) => {
-      const extra = availableExtras.find(e => e.id === extraId)
-      return sum + (extra?.price || 0)
+    const { quote_type, service_hours, vehicle_category_id, pickup_zone_id, destination_zone_id } = formData
+    
+    console.log('🔄 Calculando total:', {
+      quote_type,
+      vehicle_category_id,
+      pickup_zone_id,
+      destination_zone_id,
+      service_hours,
+      formDataExtras: formData.extras
+    })
+    
+    const extrasTotal = Object.entries(formData.extras).reduce((sum: number, [extraId, quantity]: [string, number]) => {
+      const extra = availableExtras?.find(e => e.id === extraId)
+      const extraPrice = (extra?.price || 0) * quantity
+      console.log(`Extra ${extra?.name}: $${extra?.price} x ${quantity} = $${extraPrice}`)
+      return sum + extraPrice
     }, 0)
     
-    const tripCost = base_price + (distance_km * price_per_km)
-    const totalCost = (include_return ? tripCost * 2 : tripCost) + extrasTotal
+    console.log('💰 Extras total:', extrasTotal)
+    
+    let totalCost = 0
+    let basePrice = 0
+    
+    // Verificar se há localizações fora de cobertura
+    const hasOutOfCoverage = (
+      (formData.pickup_address && !formData.pickup_zone_id) ||
+      (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+      (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+      (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+      (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+    )
+    
+    if (hasOutOfCoverage && formData.base_price > 0) {
+      // Usar preço personalizado quando há localizações fora de cobertura
+      basePrice = formData.base_price
+      totalCost = basePrice + extrasTotal
+      console.log('🎯 Using custom price for out of coverage:', { basePrice, extrasTotal, totalCost })
+    } else if (quote_type === "hourly") {
+      // Lógica correta: 1-2h = $100/h, 3+h = $80/h
+      if (service_hours <= 2) {
+        basePrice = 100 * Math.max(1, service_hours)
+      } else {
+        basePrice = 80 * Math.max(1, service_hours)
+      }
+      totalCost = basePrice + extrasTotal
+      console.log('⏰ Hourly calculation:', { basePrice, extrasTotal, totalCost })
+    } else {
+      // One-way ou Round-trip por matriz de rota
+      basePrice = getRouteBasePrice(vehicle_category_id, pickup_zone_id, destination_zone_id)
+      
+      // Se não conseguiu obter preço da rota, usar preço padrão
+      if (basePrice === 0 && vehicle_category_id) {
+        const category = categories.find(c => c.id === vehicle_category_id)
+        basePrice = category?.base_price || 130 // Preço padrão se não encontrar
+        console.log('🔄 Usando preço padrão da categoria:', basePrice)
+      }
+      
+      const multiplier = quote_type === "round-trip" ? 2 : 1
+      const routeTotal = basePrice * multiplier
+      totalCost = routeTotal + extrasTotal
+      
+      console.log('🚗 Route calculation:', {
+        basePrice,
+        multiplier,
+        routeTotal,
+        extrasTotal,
+        totalCost
+      })
+    }
+    
+    console.log('📊 Final calculation:', { basePrice, extrasTotal, totalCost })
     
     setFormData(prev => ({
       ...prev,
+      base_price: basePrice,
       total_amount: totalCost
     }))
   }
 
-  const handleExtraToggle = (extraId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      extras: prev.extras.includes(extraId)
-        ? prev.extras.filter(id => id !== extraId)
-        : [...prev.extras, extraId]
-    }))
+  const handleExtraQuantityChange = (extraId: string, change: number) => {
+    setFormData(prev => {
+      const currentQuantity = prev.extras[extraId] || 0
+      const newQuantity = Math.max(0, currentQuantity + change)
+      
+      const newExtras = { ...prev.extras }
+      if (newQuantity === 0) {
+        delete newExtras[extraId]
+      } else {
+        newExtras[extraId] = newQuantity
+      }
+      
+      return {
+        ...prev,
+        extras: newExtras
+      }
+    })
     setTimeout(calculateTotal, 0)
+  }
+
+  // Recalcular total quando zonas ou veículo mudarem
+  useEffect(() => {
+    if (formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id) {
+      calculateTotal()
+    }
+  }, [formData.vehicle_category_id, formData.pickup_zone_id, formData.destination_zone_id, formData.quote_type, formData.service_hours, formData.extras, getPrice, categories])
+
+  // Recalcular quando os dados de preços carregarem
+  useEffect(() => {
+    if (!pricingLoading && !categoriesLoading && !extrasLoading && formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id) {
+      calculateTotal()
+    }
+  }, [pricingLoading, categoriesLoading, extrasLoading])
+
+  // Função para lidar com seleção de endereço de origem
+  const { getAddressDetails } = useAddressAutocomplete()
+
+  const handlePickupPlaceSelect = async (place: any) => {
+    try {
+      // Garantir que temos lat/lng através do details
+      const details = await getAddressDetails(place.place_id)
+      const lat = details?.geometry?.location?.lat
+      const lng = details?.geometry?.location?.lng
+      
+      if (lat && lng) {
+        const zoneId = await detectZoneFromCoordinates(lat, lng)
+        setFormData(prev => ({
+          ...prev,
+          pickup_address: place.description,
+          pickup_coordinates: [lng, lat],
+          pickup_zone_id: zoneId || ""
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          pickup_address: place.description,
+          pickup_zone_id: ""
+        }))
+      }
+    } catch (error) {
+      console.error('Erro ao processar endereço de origem:', error)
+      setFormData(prev => ({
+        ...prev,
+        pickup_address: place.description,
+        pickup_zone_id: ""
+      }))
+    }
+  }
+
+  // Função para lidar com seleção de endereço de destino
+  const handleDestinationPlaceSelect = async (place: any) => {
+    try {
+      // Garantir que temos lat/lng através do details
+      const details = await getAddressDetails(place.place_id)
+      const lat = details?.geometry?.location?.lat
+      const lng = details?.geometry?.location?.lng
+      
+      if (lat && lng) {
+        const zoneId = await detectZoneFromCoordinates(lat, lng)
+        setFormData(prev => ({
+          ...prev,
+          destination_address: place.description,
+          destination_coordinates: [lng, lat],
+          destination_zone_id: zoneId || ""
+        }))
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          destination_address: place.description,
+          destination_zone_id: ""
+        }))
+      }
+    } catch (error) {
+      console.error('Erro ao processar endereço de destino:', error)
+      setFormData(prev => ({
+        ...prev,
+        destination_address: place.description,
+        destination_zone_id: ""
+      }))
+    }
   }
 
   const handleSave = async (status: 'draft' | 'sent') => {
     setIsSaving(true)
+    
+    // Logs detalhados do orçamento completo
+    console.log('💾 ===== SALVANDO ORÇAMENTO COMPLETO =====')
+    console.log('💾 Status:', status)
+    console.log('💾 Dados do Cliente:', {
+      nome: formData.customer_name,
+      email: formData.customer_email,
+      telefone: formData.customer_phone
+    })
+    console.log('💾 Tipo de Viagem:', formData.quote_type)
+    console.log('💾 Endereços:', {
+      origem: formData.pickup_address,
+      destino: formData.destination_address,
+      destinoAeroporto: formData.airport_destination,
+      origemVolta: formData.return_pickup_address,
+      destinoVolta: formData.return_destination_address
+    })
+    console.log('💾 Veículo:', {
+        categoria: formData.vehicle_category_id,
+        passageiros: formData.passengers,
+        bagagensGrandes: formData.luggage_large,
+        bagagensPequenas: formData.luggage_small
+      })
+    console.log('💾 Preços:', {
+      precoBase: formData.base_price,
+      extras: formData.extras,
+      total: formData.total_amount
+    })
+    console.log('💾 Horários:', {
+       dataHora: formData.pickup_date,
+       horasServico: formData.service_hours
+     })
+    console.log('💾 FormData Completo:', formData)
+    console.log('💾 ===== FIM DO ORÇAMENTO =====')
     
     // Aqui você salvaria no Supabase
     console.log('Salvando orçamento...', { ...formData, status })
@@ -154,7 +491,7 @@ export default function NewQuotePage() {
             className="btn-secondary flex items-center text-sm"
           >
             <Save className="h-4 w-4 mr-2" />
-            Salvar Rascunho
+            Salvar Orçamento
           </button>
           <button
             onClick={() => handleSave('sent')}
@@ -229,33 +566,112 @@ export default function NewQuotePage() {
             </div>
             
             <div className="space-y-4">
+              {/* Tipo de orçamento */}
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { id: "one-way", label: "One-way" },
+                  { id: "round-trip", label: "Round-trip" },
+                  { id: "hourly", label: "Hourly" }
+                ] as const).map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => {
+                        // Limpar campos específicos baseado no tipo anterior e novo
+                        const newData = {
+                          ...prev,
+                          quote_type: t.id,
+                          // Resetar campos específicos
+                          destination_zone_id: t.id === "hourly" ? "" : prev.destination_zone_id,
+                          destination_address: t.id === "hourly" ? "" : prev.destination_address,
+                          destination_coordinates: t.id === "hourly" ? null : prev.destination_coordinates,
+                          // Campos específicos do Round-trip
+                          return_date: t.id !== "round-trip" ? "" : prev.return_date,
+                          return_time: t.id !== "round-trip" ? "" : prev.return_time,
+                          trip_duration_days: t.id !== "round-trip" ? 0 : prev.trip_duration_days,
+                          return_pickup_address: t.id !== "round-trip" ? "" : prev.return_pickup_address,
+                          return_pickup_coordinates: t.id !== "round-trip" ? null : prev.return_pickup_coordinates,
+                          return_pickup_zone_id: t.id !== "round-trip" ? "" : prev.return_pickup_zone_id,
+                          return_destination_address: t.id !== "round-trip" ? "" : prev.return_destination_address,
+                          return_destination_coordinates: t.id !== "round-trip" ? null : prev.return_destination_coordinates,
+                          return_destination_zone_id: t.id !== "round-trip" ? "" : prev.return_destination_zone_id,
+                          // Campos específicos do Hourly
+                          service_hours: t.id !== "hourly" ? 2 : prev.service_hours,
+                          airport_destination: t.id !== "hourly" ? "" : prev.airport_destination,
+                          airport_destination_coordinates: t.id !== "hourly" ? null : prev.airport_destination_coordinates,
+                          service_type: t.id !== "hourly" ? "" : prev.service_type,
+                          airline: t.id === "hourly" ? "" : prev.airline,
+                          flight_number: t.id === "hourly" ? "" : prev.flight_number,
+                          no_flight_info: t.id === "hourly" ? false : prev.no_flight_info,
+                          // Resetar preços
+                          base_price: 0,
+                          total_amount: 0
+                        }
+                        return newData
+                      })
+                      setTimeout(calculateTotal, 0)
+                    }}
+                    className={`px-3 py-1.5 rounded-md text-sm border ${formData.quote_type === t.id ? "bg-secondary text-white border-secondary" : "bg-white text-text-dark border-border"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-text-dark mb-2">
                   Endereço de Origem *
                 </label>
-                <input
-                  type="text"
-                  required
-                  className="input-standard w-full"
+                <AddressAutocomplete
                   value={formData.pickup_address}
-                  onChange={(e) => setFormData(prev => ({...prev, pickup_address: e.target.value}))}
-                  placeholder="Aeroporto JFK, Terminal 4"
+                  onChange={(value) => setFormData(prev => ({ ...prev, pickup_address: value }))}
+                  onPlaceSelect={handlePickupPlaceSelect}
+                  placeholder="Digite o endereço de origem..."
+                  required
                 />
+                {formData.pickup_address && (
+                  <div className="mt-1 text-sm">
+                    {formData.pickup_zone_id ? (
+                      <span className="text-text-gray">
+                        Zona detectada: {zones.find(z => z.id === formData.pickup_zone_id)?.name || formData.pickup_zone_id}
+                      </span>
+                    ) : (
+                      <span className="text-orange-600 font-medium">
+                        Fora da cobertura. Utilize o ajuste manual para criar este orçamento personalizado.
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-text-dark mb-2">
-                  Endereço de Destino *
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="input-standard w-full"
-                  value={formData.destination_address}
-                  onChange={(e) => setFormData(prev => ({...prev, destination_address: e.target.value}))}
-                  placeholder="Times Square Hotel, Manhattan"
-                />
-              </div>
+              {formData.quote_type !== "hourly" && (
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Endereço de Destino *
+                  </label>
+                  <AddressAutocomplete
+                    value={formData.destination_address}
+                    onChange={(value) => setFormData(prev => ({ ...prev, destination_address: value }))}
+                    onPlaceSelect={handleDestinationPlaceSelect}
+                    placeholder="Digite o endereço de destino..."
+                    required
+                  />
+                  {formData.destination_address && (
+                    <div className="mt-1 text-sm">
+                      {formData.destination_zone_id ? (
+                        <span className="text-text-gray">
+                          Zona detectada: {zones.find(z => z.id === formData.destination_zone_id)?.name || formData.destination_zone_id}
+                        </span>
+                      ) : (
+                        <span className="text-orange-600 font-medium">
+                          Fora da cobertura. Utilize o ajuste manual para criar este orçamento personalizado.
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -267,7 +683,15 @@ export default function NewQuotePage() {
                     required
                     className="input-standard w-full"
                     value={formData.pickup_date}
-                    onChange={(e) => setFormData(prev => ({...prev, pickup_date: e.target.value}))}
+                    onChange={(e) => {
+                      const newPickupDate = e.target.value
+                      const duration = calculateTripDuration(newPickupDate, formData.return_date)
+                      setFormData(prev => ({
+                        ...prev, 
+                        pickup_date: newPickupDate,
+                        trip_duration_days: duration
+                      }))
+                    }}
                   />
                 </div>
                 
@@ -285,44 +709,262 @@ export default function NewQuotePage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  id="include_return"
-                  checked={formData.include_return}
-                  onChange={(e) => setFormData(prev => ({...prev, include_return: e.target.checked}))}
-                  className="w-4 h-4 text-secondary border-gray-300 rounded focus:ring-secondary"
-                />
-                <label htmlFor="include_return" className="text-sm font-medium text-text-dark">
-                  Incluir viagem de volta
-                </label>
-              </div>
+              {formData.quote_type !== "hourly" && (
+                <div className="space-y-4">
+                  
+                  {/* Informações de Voo para One-way e Round-trip */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="no_flight_info_general"
+                        checked={formData.no_flight_info}
+                        onChange={(e) => setFormData(prev => ({...prev, no_flight_info: e.target.checked, airline: e.target.checked ? "" : prev.airline, flight_number: e.target.checked ? "" : prev.flight_number}))}
+                        className="w-4 h-4 text-secondary border-gray-300 rounded focus:ring-secondary"
+                      />
+                      <label htmlFor="no_flight_info_general" className="text-sm font-medium text-text-dark">
+                        Sem informações de voo
+                      </label>
+                    </div>
+                    
+                    {!formData.no_flight_info && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-text-dark mb-2">
+                            Companhia Aérea
+                          </label>
+                          <input
+                            type="text"
+                            className="input-standard w-full"
+                            value={formData.airline}
+                            onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
+                            placeholder="Ex: LATAM, GOL, Azul..."
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-text-dark mb-2">
+                            Número do Voo
+                          </label>
+                          <input
+                            type="text"
+                            className="input-standard w-full"
+                            value={formData.flight_number}
+                            onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
+                            placeholder="Ex: LA3090, G31234..."
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
-              {formData.include_return && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-7">
+              {formData.quote_type === "hourly" && (
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-text-dark mb-2">
-                      Data de Volta
+                      Duração (horas)
                     </label>
                     <input
-                      type="date"
+                      type="number"
+                      min="1"
+                      max="24"
                       className="input-standard w-full"
-                      value={formData.return_date}
-                      onChange={(e) => setFormData(prev => ({...prev, return_date: e.target.value}))}
+                      value={formData.service_hours}
+                      onChange={(e) => {
+                        const hours = parseInt(e.target.value) || 1
+                        setFormData(prev => ({...prev, service_hours: hours}))
+                        setTimeout(calculateTotal, 0)
+                      }}
                     />
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-text-dark mb-2">
-                      Horário de Volta
+                      Endereço de Destino *
                     </label>
-                    <input
-                      type="time"
-                      className="input-standard w-full"
-                      value={formData.return_time}
-                      onChange={(e) => setFormData(prev => ({...prev, return_time: e.target.value}))}
+                    <AddressAutocomplete
+                      value={formData.airport_destination}
+                      onChange={(value) => setFormData(prev => ({ ...prev, airport_destination: value }))}
+                      onPlaceSelect={handleAirportDestinationPlaceSelect}
+                      placeholder="Digite o endereço de destino..."
+                      required
                     />
+                    {formData.airport_destination && (
+                      <div className="mt-1 text-sm">
+                        {formData.destination_zone_id ? (
+                          <span className="text-text-gray">
+                            Zona detectada: {zones.find(z => z.id === formData.destination_zone_id)?.name || formData.destination_zone_id}
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">
+                            Fora da cobertura. Utilize o ajuste manual para criar este orçamento personalizado.
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-text-dark mb-2">
+                      Tipo de Serviço
+                    </label>
+                    <select
+                      className="input-standard w-full"
+                      value={formData.service_type}
+                      onChange={(e) => setFormData(prev => ({...prev, service_type: e.target.value as "airport-dropoff" | "airport-pickup" | ""}))}
+                    >
+                      <option value="">Selecione o tipo de serviço</option>
+                      <option value="airport-dropoff">Airport Drop-off</option>
+                      <option value="airport-pickup">Airport Pickup</option>
+                    </select>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="no_flight_info"
+                        checked={formData.no_flight_info}
+                        onChange={(e) => setFormData(prev => ({...prev, no_flight_info: e.target.checked, airline: e.target.checked ? "" : prev.airline, flight_number: e.target.checked ? "" : prev.flight_number}))}
+                        className="w-4 h-4 text-secondary border-gray-300 rounded focus:ring-secondary"
+                      />
+                      <label htmlFor="no_flight_info" className="text-sm font-medium text-text-dark">
+                        Sem informações de voo
+                      </label>
+                    </div>
+                    
+                    {!formData.no_flight_info && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-text-dark mb-2">
+                            Companhia Aérea
+                          </label>
+                          <input
+                            type="text"
+                            className="input-standard w-full"
+                            value={formData.airline}
+                            onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
+                            placeholder="Ex: LATAM, GOL, Azul..."
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-text-dark mb-2">
+                            Número do Voo
+                          </label>
+                          <input
+                            type="text"
+                            className="input-standard w-full"
+                            value={formData.flight_number}
+                            onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
+                            placeholder="Ex: LA3090, G31234..."
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {formData.quote_type === "round-trip" && (
+                <div className="space-y-4 pl-7">
+                  <h3 className="text-md font-medium text-text-dark mb-3">Viagem de Volta</h3>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-text-dark mb-2">
+                      Endereço de Origem da Volta *
+                    </label>
+                    <AddressAutocomplete
+                      value={formData.return_pickup_address || formData.destination_address}
+                      onChange={(value) => setFormData(prev => ({ ...prev, return_pickup_address: value }))}
+                      onPlaceSelect={handleReturnPickupPlaceSelect}
+                      placeholder="Digite o endereço de origem da volta..."
+                      required
+                    />
+                    {(formData.return_pickup_address || formData.destination_address) && (
+                      <div className="mt-1 text-sm">
+                        {formData.return_pickup_zone_id ? (
+                          <span className="text-text-gray">
+                            Zona detectada: {zones.find(z => z.id === formData.return_pickup_zone_id)?.name || formData.return_pickup_zone_id}
+                          </span>
+                        ) : (
+                          <span className="text-orange-600 font-medium">
+                            Fora da cobertura. Utilize o ajuste manual para criar este orçamento personalizado.
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-text-dark mb-2">
+                      Endereço de Destino da Volta *
+                    </label>
+                    <AddressAutocomplete
+                      value={formData.return_destination_address || formData.pickup_address}
+                      onChange={(value) => setFormData(prev => ({ ...prev, return_destination_address: value }))}
+                      onPlaceSelect={handleReturnDestinationPlaceSelect}
+                      placeholder="Digite o endereço de destino da volta..."
+                      required
+                    />
+                    {(formData.return_destination_address || formData.pickup_address) && (
+                      <div className="mt-1 text-sm">
+                        {formData.return_destination_zone_id ? (
+                          <span className="text-text-gray">
+                            Zona detectada: {zones.find(z => z.id === formData.return_destination_zone_id)?.name || formData.return_destination_zone_id}
+                          </span>
+                        ) : (
+                          <span className="text-red-600 font-medium">
+                            🚫 Fora de Cobertura - Entre em contato via WhatsApp para confirmação
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-text-dark mb-2">
+                        Data de Volta
+                      </label>
+                      <input
+                        type="date"
+                        className="input-standard w-full"
+                        value={formData.return_date}
+                        onChange={(e) => {
+                          const newReturnDate = e.target.value
+                          const duration = calculateTripDuration(formData.pickup_date, newReturnDate)
+                          setFormData(prev => ({
+                            ...prev, 
+                            return_date: newReturnDate,
+                            trip_duration_days: duration
+                          }))
+                        }}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-text-dark mb-2">
+                        Horário de Volta
+                      </label>
+                      <input
+                        type="time"
+                        className="input-standard w-full"
+                        value={formData.return_time}
+                        onChange={(e) => setFormData(prev => ({...prev, return_time: e.target.value}))}
+                      />
+                    </div>
+                  </div>
+                  
+                  {formData.pickup_date && formData.return_date && formData.trip_duration_days > 0 && (
+                    <div className="bg-gray-50 p-3 rounded-md">
+                      <span className="text-sm text-text-gray">
+                        Duração da viagem: <strong>{formData.trip_duration_days} dia{formData.trip_duration_days !== 1 ? 's' : ''}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -343,13 +985,13 @@ export default function NewQuotePage() {
                 <select
                   required
                   className="input-standard w-full"
-                  value={formData.vehicle_type}
+                  value={formData.vehicle_category_id}
                   onChange={(e) => handleVehicleChange(e.target.value)}
                 >
                   <option value="">Selecione um veículo</option>
-                  {vehicleTypes.map(vehicle => (
-                    <option key={vehicle.id} value={vehicle.id}>
-                      {vehicle.name} (até {vehicle.capacity} passageiros) - ${vehicle.base_price}
+                  {categories.map(category => (
+                    <option key={category.id} value={category.id}>
+                      {category.name} - ${formData.quote_type === "hourly" ? (formData.service_hours <= 2 ? "100/h" : "80/h") : category.base_price}
                     </option>
                   ))}
                 </select>
@@ -379,8 +1021,21 @@ export default function NewQuotePage() {
                     min="0"
                     max="10"
                     className="input-standard w-full"
-                    value={formData.luggage}
-                    onChange={(e) => setFormData(prev => ({...prev, luggage: parseInt(e.target.value)}))}
+                    value={formData.luggage_large}
+                    onChange={(e) => setFormData(prev => ({...prev, luggage_large: parseInt(e.target.value)}))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">
+                    Bagagens Pequenas
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    className="input-standard w-full"
+                    value={formData.luggage_small}
+                    onChange={(e) => setFormData(prev => ({...prev, luggage_small: parseInt(e.target.value)}))}
                   />
                 </div>
               </div>
@@ -389,21 +1044,36 @@ export default function NewQuotePage() {
                 <label className="block text-sm font-medium text-text-dark mb-3">
                   Serviços Extras
                 </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {availableExtras.map(extra => (
-                    <div key={extra.id} className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        id={extra.id}
-                        checked={formData.extras.includes(extra.id)}
-                        onChange={() => handleExtraToggle(extra.id)}
-                        className="w-4 h-4 text-secondary border-gray-300 rounded focus:ring-secondary"
-                      />
-                      <label htmlFor={extra.id} className="text-sm text-text-dark flex-1">
-                        {extra.name} (+${extra.price})
-                      </label>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-1 gap-3">
+                  {availableExtras?.map(extra => {
+                    const quantity = formData.extras[extra.id] || 0
+                    return (
+                      <div key={extra.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-text-dark">{extra.name}</span>
+                          <span className="text-sm text-gray-500 ml-2">(+${extra.price})</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleExtraQuantityChange(extra.id, -1)}
+                            disabled={quantity === 0}
+                            className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="w-8 text-center text-sm font-medium">{quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleExtraQuantityChange(extra.id, 1)}
+                            className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -412,6 +1082,58 @@ export default function NewQuotePage() {
 
         {/* Sidebar - Resumo e Configurações */}
         <div className="space-y-6">
+          {/* Ajuste Manual para Fora de Cobertura */}
+          {(formData.pickup_address && !formData.pickup_zone_id) || 
+           (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+           (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+           (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+           (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip") ? (
+            <div className="bg-white rounded-lg p-6 border border-border">
+              <div className="mb-4">
+                <h2 className="text-lg font-medium text-orange-600">Ajuste Manual</h2>
+              </div>
+              
+              <div className="space-y-4">
+                 <p className="text-sm text-text-gray">
+                   <strong>Atenção:</strong> Uma ou mais localizações estão fora da área de cobertura padrão. 
+                   Defina um preço personalizado para esta cotação.
+                 </p>
+                 
+                 <div>
+                   <label className="block text-sm font-medium text-text-dark mb-2">
+                     Preço Base Personalizado ($)
+                   </label>
+                   <input
+                     type="number"
+                     min="0"
+                     step="1"
+                     className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-secondary"
+                     value={formData.base_price || ""}
+                     onChange={(e) => {
+                       const value = e.target.value
+                       const price = value === '' ? 0 : parseFloat(value)
+                       console.log('🔧 Mudando preço personalizado para:', price)
+                       console.log('🔧 FormData antes da mudança:', formData)
+                       
+                       setFormData(prev => {
+                         const newData = {...prev, base_price: price}
+                         console.log('🔧 FormData após mudança:', newData)
+                         
+                         // Calcular e atualizar o total imediatamente
+                         const extrasTotal = (prev.extras || []).reduce((sum, extra) => sum + extra.price, 0)
+                         const totalCost = price + extrasTotal
+                         newData.total_amount = totalCost
+                         
+                         return newData
+                       })
+                     }}
+                     placeholder="Ex: 150"
+                   />
+                 </div>
+               </div>
+            </div>
+          ) : null}
+
           {/* Cálculo de Preços */}
           <div className="bg-white rounded-lg p-6 border border-border">
             <div className="flex items-center gap-2 mb-4">
@@ -420,56 +1142,256 @@ export default function NewQuotePage() {
             </div>
             
             <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.1"
-                  className="input-standard flex-1"
-                  value={formData.distance_km}
-                  onChange={(e) => setFormData(prev => ({...prev, distance_km: parseFloat(e.target.value)}))}
-                  placeholder="Distância (km)"
-                />
-                <button
-                  onClick={calculateDistance}
-                  disabled={!formData.pickup_address || !formData.destination_address || isCalculating}
-                  className="btn-secondary text-sm"
-                >
-                  {isCalculating ? "..." : "Calcular"}
-                </button>
-              </div>
+              {zonesLoading || categoriesLoading || pricingLoading || extrasLoading ? (
+                <div className="text-center py-4">
+                  <div className="text-text-gray">Carregando dados de preços...</div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {formData.quote_type !== "hourly" ? (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-text-gray">
+                          {formData.quote_type === "round-trip" ? "Preço ida:" : "Preço base (rota):"}
+                        </span>
+                        <span className="font-medium">${formData.base_price.toFixed(2)}</span>
+                      </div>
+                      {formData.quote_type === "round-trip" && (
+                        <div className="flex justify-between">
+                          <span className="text-text-gray">Preço volta:</span>
+                          <span className="font-medium">${formData.base_price.toFixed(2)}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-text-gray">Tarifa por hora:</span>
+                        <span className="font-medium">${(formData.service_hours <= 2 ? 100 : 80).toFixed(2)}/h</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-text-gray">Horas:</span>
+                        <span className="font-medium">{formData.service_hours}</span>
+                      </div>
+                    </>
+                  )}
+                  {Object.keys(formData.extras).length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-text-gray">Extras:</span>
+                      <span className="font-medium">
+                        ${Object.entries(formData.extras).reduce((sum: number, [extraId, quantity]: [string, number]) => {
+                          const extra = availableExtras?.find(e => e.id === extraId)
+                          return sum + ((extra?.price || 0) * quantity)
+                        }, 0).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  <hr className="my-2" />
+                  <div className="flex justify-between text-lg font-bold">
+                    <span>Total:</span>
+                    <span className="text-secondary">${formData.total_amount.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-              <div className="space-y-2 text-sm">
+          {/* Resumo do Orçamento */}
+          <div className="bg-white rounded-lg p-6 border border-border">
+            <div className="flex items-center gap-2 mb-4">
+              <DollarSign className="h-5 w-5 text-secondary" />
+              <h2 className="text-lg font-medium text-text-dark">Detalhes do Orçamento</h2>
+            </div>
+            
+            <div className="space-y-3 text-sm">
+              {/* Cliente */}
+              {formData.customer_name && (
                 <div className="flex justify-between">
-                  <span className="text-text-gray">Preço base:</span>
-                  <span className="font-medium">${formData.base_price.toFixed(2)}</span>
+                  <span className="text-text-gray">Cliente:</span>
+                  <span className="font-medium">{formData.customer_name}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-text-gray">Distância ({formData.distance_km}km):</span>
-                  <span className="font-medium">${(formData.distance_km * formData.price_per_km).toFixed(2)}</span>
-                </div>
-                {formData.include_return && (
-                  <div className="flex justify-between">
-                    <span className="text-text-gray">Viagem de volta:</span>
-                    <span className="font-medium">${(formData.base_price + (formData.distance_km * formData.price_per_km)).toFixed(2)}</span>
-                  </div>
-                )}
-                {formData.extras.length > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-text-gray">Extras:</span>
-                    <span className="font-medium">
-                      ${formData.extras.reduce((sum, extraId) => {
-                        const extra = availableExtras.find(e => e.id === extraId)
-                        return sum + (extra?.price || 0)
-                      }, 0).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-                <hr className="my-2" />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total:</span>
-                  <span className="text-secondary">${formData.total_amount.toFixed(2)}</span>
-                </div>
+              )}
+              
+              {/* Tipo de Viagem */}
+              <div className="flex justify-between">
+                <span className="text-text-gray">Tipo:</span>
+                <span className="font-medium capitalize">
+                  {formData.quote_type === "one-way" ? "Ida" : 
+                   formData.quote_type === "round-trip" ? "Ida e Volta" : "Por Hora"}
+                </span>
               </div>
+              
+              {/* Endereços */}
+              {formData.quote_type === "round-trip" ? (
+                <>
+                  {/* Endereços da Ida */}
+                  <div className="border-l-2 border-secondary pl-3 space-y-2">
+                    <div className="text-xs font-medium text-secondary uppercase tracking-wide">Viagem de Ida</div>
+                    {formData.pickup_address && (
+                      <div className="flex justify-between">
+                        <span className="text-text-gray text-sm">Origem:</span>
+                        <span className="font-medium text-right max-w-[180px] truncate text-sm" title={formData.pickup_address}>
+                          {formData.pickup_address}
+                        </span>
+                      </div>
+                    )}
+                    {formData.destination_address && (
+                      <div className="flex justify-between">
+                        <span className="text-text-gray text-sm">Destino:</span>
+                        <span className="font-medium text-right max-w-[180px] truncate text-sm" title={formData.destination_address}>
+                          {formData.destination_address}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Endereços da Volta */}
+                  <div className="border-l-2 border-orange-400 pl-3 space-y-2">
+                    <div className="text-xs font-medium text-orange-600 uppercase tracking-wide">Viagem de Volta</div>
+                    {(formData.return_pickup_address || formData.destination_address) && (
+                      <div className="flex justify-between">
+                        <span className="text-text-gray text-sm">Origem:</span>
+                        <span className="font-medium text-right max-w-[180px] truncate text-sm" title={formData.return_pickup_address || formData.destination_address}>
+                          {formData.return_pickup_address || formData.destination_address}
+                        </span>
+                      </div>
+                    )}
+                    {(formData.return_destination_address || formData.pickup_address) && (
+                      <div className="flex justify-between">
+                        <span className="text-text-gray text-sm">Destino:</span>
+                        <span className="font-medium text-right max-w-[180px] truncate text-sm" title={formData.return_destination_address || formData.pickup_address}>
+                          {formData.return_destination_address || formData.pickup_address}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Endereços para One-way e Hourly */}
+                  {formData.pickup_address && (
+                    <div className="flex justify-between">
+                      <span className="text-text-gray">Origem:</span>
+                      <span className="font-medium text-right max-w-[200px] truncate" title={formData.pickup_address}>
+                        {formData.pickup_address}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {formData.destination_address && formData.quote_type !== "hourly" && (
+                    <div className="flex justify-between">
+                      <span className="text-text-gray">Destino:</span>
+                      <span className="font-medium text-right max-w-[200px] truncate" title={formData.destination_address}>
+                        {formData.destination_address}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {formData.airport_destination && formData.quote_type === "hourly" && (
+                    <div className="flex justify-between">
+                      <span className="text-text-gray">Destino:</span>
+                      <span className="font-medium text-right max-w-[200px] truncate" title={formData.airport_destination}>
+                        {formData.airport_destination}
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {/* Data e Hora */}
+              {formData.pickup_date && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Data:</span>
+                  <span className="font-medium">
+                    {new Date(formData.pickup_date).toLocaleDateString('pt-BR')}
+                    {formData.pickup_time && ` às ${formData.pickup_time}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* Dados da Volta (Round-trip) */}
+              {formData.quote_type === "round-trip" && formData.return_date && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Volta:</span>
+                  <span className="font-medium">
+                    {new Date(formData.return_date).toLocaleDateString('pt-BR')}
+                    {formData.return_time && ` às ${formData.return_time}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* Horas de Serviço (Hourly) */}
+              {formData.quote_type === "hourly" && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Duração:</span>
+                  <span className="font-medium">{formData.service_hours} horas</span>
+                </div>
+              )}
+              
+              {/* Veículo */}
+              {formData.vehicle_category_id && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Veículo:</span>
+                  <span className="font-medium">
+                    {categories.find(c => c.id === formData.vehicle_category_id)?.name || 'Selecionado'}
+                  </span>
+                </div>
+              )}
+              
+              {/* Passageiros */}
+              {formData.passengers > 1 && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Passageiros:</span>
+                  <span className="font-medium">{formData.passengers}</span>
+                </div>
+              )}
+              
+              {/* Bagagens */}
+              {(formData.luggage_large > 0 || formData.luggage_small > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-text-gray">Bagagens:</span>
+                  <span className="font-medium">
+                    {formData.luggage_large > 0 && `${formData.luggage_large} grande${formData.luggage_large > 1 ? 's' : ''}`}
+                    {formData.luggage_large > 0 && formData.luggage_small > 0 && ', '}
+                    {formData.luggage_small > 0 && `${formData.luggage_small} pequena${formData.luggage_small > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+              )}
+              
+              {/* Extras */}
+              {Object.keys(formData.extras).length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-text-gray">Extras:</span>
+                  {Object.entries(formData.extras).map(([extraId, quantity]: [string, number]) => {
+                    const extra = availableExtras?.find(e => e.id === extraId)
+                    return extra ? (
+                      <div key={extraId} className="flex justify-between ml-4">
+                        <span className="text-text-gray text-xs">• {extra.name} x{quantity}</span>
+                        <span className="font-medium text-xs">+${(extra.price * quantity).toFixed(2)}</span>
+                      </div>
+                    ) : null
+                  })}
+                </div>
+              )}
+              
+              {/* Informações de Voo */}
+              {formData.quote_type === "hourly" && !formData.no_flight_info && (formData.airline || formData.flight_number) && (
+                <div className="space-y-1">
+                  <span className="text-text-gray">Voo:</span>
+                  {formData.airline && (
+                    <div className="flex justify-between ml-4">
+                      <span className="text-text-gray text-xs">• Companhia:</span>
+                      <span className="font-medium text-xs">{formData.airline}</span>
+                    </div>
+                  )}
+                  {formData.flight_number && (
+                    <div className="flex justify-between ml-4">
+                      <span className="text-text-gray text-xs">• Número:</span>
+                      <span className="font-medium text-xs">{formData.flight_number}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -513,4 +1435,4 @@ export default function NewQuotePage() {
       </div>
     </div>
   )
-} 
+}
