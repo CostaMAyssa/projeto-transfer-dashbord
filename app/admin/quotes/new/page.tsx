@@ -315,11 +315,17 @@ export default function NewQuotePage() {
     
     console.log('📊 Final calculation:', { basePrice, extrasTotal, totalCost })
     
-    setFormData(prev => ({
-      ...prev,
-      base_price: basePrice,
-      total_amount: totalCost
-    }))
+    setFormData(prev => {
+      // Preservar o preço personalizado se estiver em modo de ajuste manual
+      const finalBasePrice = hasOutOfCoverage && prev.base_price > 0 ? prev.base_price : basePrice
+      const finalTotalCost = hasOutOfCoverage && prev.base_price > 0 ? prev.base_price + extrasTotal : totalCost
+      
+      return {
+        ...prev,
+        base_price: finalBasePrice,
+        total_amount: finalTotalCost
+      }
+    })
   }
 
   const handleExtraQuantityChange = (extraId: string, change: number) => {
@@ -339,19 +345,48 @@ export default function NewQuotePage() {
         extras: newExtras
       }
     })
-    setTimeout(calculateTotal, 0)
+    // Só recalcular se não estiver em modo de ajuste manual
+    setTimeout(() => {
+      const hasOutOfCoverage = (
+        (formData.pickup_address && !formData.pickup_zone_id) ||
+        (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+        (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+        (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+        (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+      )
+      if (!(hasOutOfCoverage && formData.base_price > 0)) {
+        calculateTotal()
+      }
+    }, 0)
   }
 
-  // Recalcular total quando zonas ou veículo mudarem
+  // Recalcular total quando zonas ou veículo mudarem (exceto em modo de ajuste manual)
   useEffect(() => {
-    if (formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id) {
+    const hasOutOfCoverage = (
+      (formData.pickup_address && !formData.pickup_zone_id) ||
+      (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+      (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+      (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+      (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+    )
+    
+    // Só recalcular automaticamente se não estiver em modo de ajuste manual ou se não há preço personalizado
+    if (formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id && !(hasOutOfCoverage && formData.base_price > 0)) {
       calculateTotal()
     }
   }, [formData.vehicle_category_id, formData.pickup_zone_id, formData.destination_zone_id, formData.quote_type, formData.service_hours, formData.extras, getPrice, categories])
 
-  // Recalcular quando os dados de preços carregarem
+  // Recalcular quando os dados de preços carregarem (exceto em modo de ajuste manual)
   useEffect(() => {
-    if (!pricingLoading && !categoriesLoading && !extrasLoading && formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id) {
+    const hasOutOfCoverage = (
+      (formData.pickup_address && !formData.pickup_zone_id) ||
+      (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+      (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+      (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+      (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+    )
+    
+    if (!pricingLoading && !categoriesLoading && !extrasLoading && formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id && !(hasOutOfCoverage && formData.base_price > 0)) {
       calculateTotal()
     }
   }, [pricingLoading, categoriesLoading, extrasLoading])
@@ -463,7 +498,63 @@ export default function NewQuotePage() {
     
     // Aqui você salvaria no Supabase
     console.log('Salvando orçamento...', { ...formData, status })
-    
+
+    if (status === 'draft') {
+      try {
+        const category = categories.find(c => c.id === formData.vehicle_category_id)
+        const extrasList = Object.entries(formData.extras || {})
+          .filter(([, q]) => Number(q as number) > 0)
+          .map(([id, qty]) => {
+            const extra = (availableExtras || []).find((e: any) => e.id === id)
+            return `${extra?.name || 'Extra'} x${qty}`
+          })
+
+        const extrasTotal = Object.entries(formData.extras || {}).reduce((sum, [id, qty]) => {
+          const extra = (availableExtras || []).find((e: any) => e.id === id)
+          return sum + (extra ? Number(extra.price || 0) * Number(qty as number) : 0)
+        }, 0)
+
+        const precoBaseFmt = `$${Number(formData.base_price || 0).toFixed(2)}`;
+        const extrasFmt = `$${Number(extrasTotal).toFixed(2)}`;
+        const totalFmt = `$${Number(formData.total_amount || 0).toFixed(2)}`;
+        const validadeFmt = `${formData.expires_days} dia${formData.expires_days === 1 ? '' : 's'}`;
+        const tipoTrajeto = formData.quote_type === 'one-way' ? 'One-way' : formData.quote_type === 'round-trip' ? 'Round-trip' : 'Hourly';
+
+        const voucherData = {
+          booking_reference: `DRFT-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+          data_emissao: new Date().toLocaleDateString('pt-BR'),
+          nome_cliente: formData.customer_name || '-',
+          email_cliente: formData.customer_email || '-',
+          telefone_cliente: formData.customer_phone || '-',
+          tipo_trajeto: tipoTrajeto,
+          origem: formData.pickup_address || '-',
+          destino: formData.quote_type === 'hourly' ? (formData.airport_destination || '-') : (formData.destination_address || '-'),
+          data_ida: formData.pickup_date || '-',
+          hora_ida: formData.pickup_time || '-',
+          numero_voo: formData.no_flight_info ? '-' : (formData.flight_number || '-'),
+          volta: formData.quote_type === 'round-trip' ? `${formData.return_date || '-'} ${formData.return_time || ''}`.trim() : '—',
+          veiculo: category?.name || '-',
+          qtd_passageiros: String(formData.passengers || 0),
+          qtd_bagagens: String((formData.luggage_large || 0) + (formData.luggage_small || 0)),
+          extras: extrasList,
+          preco_base: precoBaseFmt,
+          valor_extras: extrasFmt,
+          valor_total: totalFmt,
+          validade: validadeFmt,
+        }
+
+        const encoded = encodeURIComponent(JSON.stringify(voucherData))
+        if (typeof window !== 'undefined') {
+          window.location.href = `/quote/preview?data=${encoded}`
+        }
+      } catch (e) {
+        console.error('Erro ao gerar preview do voucher:', e)
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
     setTimeout(() => {
       setIsSaving(false)
       // Redirecionar para lista ou mostrar sucesso
@@ -491,7 +582,7 @@ export default function NewQuotePage() {
             className="btn-secondary flex items-center text-sm"
           >
             <Save className="h-4 w-4 mr-2" />
-            Salvar Orçamento
+            Salvar Rascunho
           </button>
           <button
             onClick={() => handleSave('sent')}
@@ -610,7 +701,19 @@ export default function NewQuotePage() {
                         }
                         return newData
                       })
-                      setTimeout(calculateTotal, 0)
+                      // Só recalcular se não estiver em modo de ajuste manual
+                      setTimeout(() => {
+                        const hasOutOfCoverage = (
+                          (formData.pickup_address && !formData.pickup_zone_id) ||
+                          (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+                          (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+                          (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+                          (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+                        )
+                        if (!(hasOutOfCoverage && formData.base_price > 0)) {
+                          calculateTotal()
+                        }
+                      }, 0)
                     }}
                     className={`px-3 py-1.5 rounded-md text-sm border ${formData.quote_type === t.id ? "bg-secondary text-white border-secondary" : "bg-white text-text-dark border-border"}`}
                   >
@@ -775,7 +878,19 @@ export default function NewQuotePage() {
                       onChange={(e) => {
                         const hours = parseInt(e.target.value) || 1
                         setFormData(prev => ({...prev, service_hours: hours}))
-                        setTimeout(calculateTotal, 0)
+                        // Só recalcular se não estiver em modo de ajuste manual
+                        setTimeout(() => {
+                          const hasOutOfCoverage = (
+                            (formData.pickup_address && !formData.pickup_zone_id) ||
+                            (formData.destination_address && !formData.destination_zone_id && formData.quote_type !== "hourly") ||
+                            (formData.airport_destination && !formData.destination_zone_id && formData.quote_type === "hourly") ||
+                            (formData.return_pickup_address && !formData.return_pickup_zone_id && formData.quote_type === "round-trip") ||
+                            (formData.return_destination_address && !formData.return_destination_zone_id && formData.quote_type === "round-trip")
+                          )
+                          if (!(hasOutOfCoverage && formData.base_price > 0)) {
+                            calculateTotal()
+                          }
+                        }, 0)
                       }}
                     />
                   </div>
@@ -1119,10 +1234,8 @@ export default function NewQuotePage() {
                          const newData = {...prev, base_price: price}
                          console.log('🔧 FormData após mudança:', newData)
                          
-                         // Calcular e atualizar o total imediatamente
-                         const extrasTotal = (prev.extras || []).reduce((sum, extra) => sum + extra.price, 0)
-                         const totalCost = price + extrasTotal
-                         newData.total_amount = totalCost
+                         // Definir o total como apenas o preço base (extras serão somados separadamente)
+                         newData.total_amount = price
                          
                          return newData
                        })
@@ -1148,49 +1261,71 @@ export default function NewQuotePage() {
                 </div>
               ) : (
                 <div className="space-y-2 text-sm">
-                  {formData.quote_type !== "hourly" ? (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-text-gray">
-                          {formData.quote_type === "round-trip" ? "Preço ida:" : "Preço base (rota):"}
-                        </span>
-                        <span className="font-medium">${formData.base_price.toFixed(2)}</span>
-                      </div>
-                      {formData.quote_type === "round-trip" && (
-                        <div className="flex justify-between">
-                          <span className="text-text-gray">Preço volta:</span>
-                          <span className="font-medium">${formData.base_price.toFixed(2)}</span>
+                  {(() => {
+                    // Calcular valores em tempo real para evitar delay
+                    const extrasTotal = Object.entries(formData.extras).reduce((sum: number, [extraId, quantity]: [string, number]) => {
+                      const extra = availableExtras?.find(e => e.id === extraId)
+                      return sum + ((extra?.price || 0) * quantity)
+                    }, 0)
+                    
+                    let currentBasePrice = formData.base_price
+                    let currentTotal = formData.total_amount
+                    
+                    // Para modalidade hourly, calcular preço em tempo real
+                    if (formData.quote_type === "hourly") {
+                      const hourlyRate = formData.service_hours <= 2 ? 100 : 80
+                      currentBasePrice = hourlyRate * Math.max(1, formData.service_hours)
+                      currentTotal = currentBasePrice + extrasTotal
+                    } else {
+                      // Para outras modalidades, usar o preço base atual + extras
+                      currentTotal = currentBasePrice + extrasTotal
+                    }
+                    
+                    return (
+                      <>
+                        {formData.quote_type !== "hourly" ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-text-gray">
+                                {formData.quote_type === "round-trip" ? "Preço ida:" : "Preço base (rota):"}
+                              </span>
+                              <span className="font-medium">${currentBasePrice.toFixed(2)}</span>
+                            </div>
+                            {formData.quote_type === "round-trip" && (
+                              <div className="flex justify-between">
+                                <span className="text-text-gray">Preço volta:</span>
+                                <span className="font-medium">${currentBasePrice.toFixed(2)}</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-text-gray">Tarifa por hora:</span>
+                              <span className="font-medium">${(formData.service_hours <= 2 ? 100 : 80).toFixed(2)}/h</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-text-gray">Horas:</span>
+                              <span className="font-medium">{formData.service_hours}</span>
+                            </div>
+                          </>
+                        )}
+                        {Object.keys(formData.extras).length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-text-gray">Extras:</span>
+                            <span className="font-medium">
+                              ${extrasTotal.toFixed(2)}
+                            </span>
+                          </div>
+                        )}
+                        <hr className="my-2" />
+                        <div className="flex justify-between text-lg font-bold">
+                          <span>Total:</span>
+                          <span className="text-secondary">${currentTotal.toFixed(2)}</span>
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-text-gray">Tarifa por hora:</span>
-                        <span className="font-medium">${(formData.service_hours <= 2 ? 100 : 80).toFixed(2)}/h</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-text-gray">Horas:</span>
-                        <span className="font-medium">{formData.service_hours}</span>
-                      </div>
-                    </>
-                  )}
-                  {Object.keys(formData.extras).length > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-text-gray">Extras:</span>
-                      <span className="font-medium">
-                        ${Object.entries(formData.extras).reduce((sum: number, [extraId, quantity]: [string, number]) => {
-                          const extra = availableExtras?.find(e => e.id === extraId)
-                          return sum + ((extra?.price || 0) * quantity)
-                        }, 0).toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  <hr className="my-2" />
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total:</span>
-                    <span className="text-secondary">${formData.total_amount.toFixed(2)}</span>
-                  </div>
+                      </>
+                    )
+                  })()}
                 </div>
               )}
             </div>
@@ -1417,17 +1552,26 @@ export default function NewQuotePage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-dark mb-2">
-                  Observações
-                </label>
-                <textarea
-                  rows={3}
-                  className="input-standard w-full"
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({...prev, notes: e.target.value}))}
-                  placeholder="Informações adicionais para o cliente..."
-                />
+              {/* Botões de Ação */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => handleSave('draft')}
+                  disabled={isSaving}
+                  className="flex-1 bg-gray-100 text-text-dark px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  Salvar Rascunho
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSave('sent')}
+                  disabled={isSaving || !formData.customer_email}
+                  className="flex-1 bg-secondary text-white px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  Enviar Orçamento
+                </button>
               </div>
             </div>
           </div>

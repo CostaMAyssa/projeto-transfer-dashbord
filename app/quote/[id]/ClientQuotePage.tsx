@@ -15,9 +15,11 @@ import {
   Phone,
   FileText
 } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 
 export default function ClientQuotePage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const quoteId = params.id as string
   
   const [quote, setQuote] = useState<any>(null)
@@ -29,8 +31,50 @@ export default function ClientQuotePage() {
   })
 
   useEffect(() => {
-    // Aqui você buscaria os dados do orçamento do Supabase
-    // Mock data para demonstração
+    if (quoteId === 'preview') {
+      const dataParam = searchParams.get('data')
+      if (!dataParam) {
+        setQuote({ error: 'missing' })
+        return
+      }
+      try {
+        const parsed = JSON.parse(decodeURIComponent(dataParam))
+        const now = new Date()
+        const expiresDays = parsed.validade?.match(/\d+/)?.[0]
+        const expiresAt = expiresDays ? new Date(now.getTime() + Number(expiresDays) * 24*60*60*1000) : now
+        setQuote({
+          id: parsed.booking_reference || 'PREVIEW',
+          customer_name: parsed.nome_cliente || '-',
+          customer_email: parsed.email_cliente || '-',
+          customer_phone: parsed.telefone_cliente || '-',
+          origin: parsed.origem || '-',
+          destination: parsed.destino || '-',
+          pickup_date: parsed.data_ida || '-',
+          pickup_time: parsed.hora_ida || '-',
+          return_date: parsed.volta?.split(' ')?.[0] || '',
+          return_time: parsed.volta?.split(' ')?.[1] || '',
+          include_return: !!parsed.volta && parsed.volta !== '—',
+          vehicle_type: parsed.veiculo || '-',
+          passengers: Number(parsed.qtd_passageiros || 0),
+          luggage: Number(parsed.qtd_bagagens || 0),
+          base_price: Number(String(parsed.preco_base || '0').replace(/[^0-9.]/g, '')),
+          extras: (parsed.extras || []).map((n: string) => ({ name: n, price: 0 })),
+          total_amount: Number(String(parsed.valor_total || '0').replace(/[^0-9.]/g, '')),
+          notes: '',
+          expires_at: expiresAt.toISOString(),
+          created_at: now.toISOString(),
+          status: 'draft',
+          tipo_trajeto: parsed.tipo_trajeto || '-',
+          numero_voo: parsed.numero_voo || '-'
+        })
+      } catch (e) {
+        console.error('Erro ao carregar dados de preview:', e)
+        setQuote({ error: 'invalid' })
+      }
+      return
+    }
+
+    // fallback mock atual
     setQuote({
       id: quoteId,
       customer_name: "João Silva",
@@ -58,7 +102,23 @@ export default function ClientQuotePage() {
       created_at: "2025-01-11T09:00:00",
       status: "sent"
     })
-  }, [quoteId])
+  }, [quoteId, searchParams])
+
+  if (quote?.error === 'missing') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Dados de pré-visualização não encontrados.</p>
+      </div>
+    )
+  }
+
+  if (quote?.error === 'invalid') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Não foi possível carregar o preview do voucher.</p>
+      </div>
+    )
+  }
 
   const handleAccept = () => {
     setStatus('accepting')
