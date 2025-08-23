@@ -1,54 +1,109 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
 
-export const dynamic = "force-dynamic"
+interface Quote {
+  booking_reference?: string
+  data_emissao?: string
+  valor_total?: string
+  nome_cliente?: string
+  client_name?: string
+  telefone_cliente?: string
+  client_phone?: string
+  email_cliente?: string
+  client_email?: string
+  qtd_passageiros?: string
+  passengers?: string
+  qtd_bagagens?: string
+  luggage?: string
+  bagagens_grandes?: string
+  large_luggage?: string
+  bagagens_pequenas?: string
+  small_luggage?: string
+  veiculo?: string
+  vehicle_type?: string
+  origem?: string
+  origin?: string
+  data_ida?: string
+  pickup_date?: string
+  horario?: string
+  pickup_time?: string
+  numero_voo?: string
+  flight_number?: string
+  destino?: string
+  destination?: string
+  tipo_trajeto?: string
+  trip_type?: string
+  volta?: string
+  return_date?: string
+  extras?: string[]
+  additional_services?: string[]
+  preco_base?: string
+  base_price?: string
+  valor_extras?: string
+  extras_price?: string
+  validade?: string
+  validity?: string
+  service_hours?: string
+  airline?: string
+}
 
-export default function QuotePreviewPage() {
+export default function QuotePreview() {
   const searchParams = useSearchParams()
-  const [quote, setQuote] = useState<any>(null)
+  const [quote, setQuote] = useState<Quote | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const data = searchParams.get('data')
-    if (data) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(data))
-        setQuote(decoded)
-      } catch (error) {
-        console.error('Erro ao decodificar dados:', error)
-        setQuote({ error: 'invalid' })
+    try {
+      const quoteData = searchParams.get('data')
+      if (quoteData) {
+        const parsedQuote = JSON.parse(decodeURIComponent(quoteData))
+        setQuote(parsedQuote)
+      } else {
+        // Dados de exemplo para teste
+        setQuote({
+          booking_reference: 'AZ0005000NYC',
+          data_emissao: 'Sat, 12 de Jul de 2025 02:30 PM',
+          valor_total: 'U$ 300.00',
+          nome_cliente: 'Mayssa Ferreira Costa',
+          telefone_cliente: '+1 347 848-7765',
+          email_cliente: 'mayssacosta16@gmail.com',
+          qtd_passageiros: '2',
+          bagagens_grandes: '1',
+          bagagens_pequenas: '2',
+          veiculo: 'SUV Premium',
+          origem: 'JFK Airport - Terminal 4',
+          data_ida: '12/07/2025',
+          horario: '14:30',
+          numero_voo: 'AA1234',
+          airline: 'American Airlines',
+          destino: 'Manhattan Hotel',
+          tipo_trajeto: 'One-way',
+          extras: ['Child Seat', 'Meet & Greet'],
+          preco_base: 'U$ 250.00',
+          valor_extras: 'U$ 50.00',
+          validade: '48 hours'
+        })
       }
-    } else {
-      setQuote({ error: 'missing' })
+      setLoading(false)
+    } catch (err) {
+      setError('Erro ao carregar dados do orçamento')
+      setLoading(false)
     }
   }, [searchParams])
 
-  if (quote?.error === 'missing') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Dados de pré-visualização não encontrados.</p>
-      </div>
-    )
+  if (loading) {
+    return <div>Carregando...</div>
   }
 
-  if (quote?.error === 'invalid') {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-600">Não foi possível carregar o preview do voucher.</p>
-      </div>
-    )
+  if (error) {
+    return <div>Erro: {error}</div>
   }
 
   if (!quote) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-secondary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando orçamento...</p>
-        </div>
-      </div>
-    )
+    return <div>Nenhum dado de orçamento encontrado</div>
   }
 
   return (
@@ -137,47 +192,102 @@ export default function QuotePreviewPage() {
           margin: 8px 0 0 15px;
         }
       `}</style>
-      
       <div className="voucher">
         <div className="header-top">
-          <img src="/img/logo.png" alt="AZ Transfer Logo" className="logo" />
+          <img src="168f2f96-96fb-4f79-a0a2-cbd7929ea8a9.png" alt="AZ Transfer Logo" className="logo" />
           <a href="https://instagram.com/aztransfer" target="_blank" className="instagram">
             <img src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" alt="Instagram" className="instagram-icon" />
           </a>
         </div>
 
-        <h1>Voucher / Booking Confirmation</h1>
+        <h1>TRANSFER QUOTE</h1>
 
         <div className="section">
           <h2>Booking Information</h2>
-          <p><span className="label">Booking Reference:</span> <span className="value">{quote.booking_reference || 'DRFT-' + Date.now().toString().slice(-6)}</span></p>
-          <p><span className="label">Issue Date:</span> <span className="value">{quote.data_emissao || new Date().toLocaleDateString('pt-BR')}</span></p>
-          <p><span className="label">Receive:</span> <span className="value">{quote.valor_total || '$0.00'} in cash</span></p>
+          <p><span className="label">Booking Reference:</span> <span className="value">{quote.booking_reference || 'AZ0005000NYC'}</span></p>
+          <p><span className="label">Issue Date:</span> <span className="value">{quote.data_emissao || 'Sat, 12 de Jul de 2025 02:30 PM'}</span></p>
+          <p><span className="label">Receive:</span> <span className="value">{quote.valor_total || 'U$ 300.00'} in cash</span></p>
         </div>
 
         <div className="section">
           <h2>Traveller Information</h2>
-          <p><span className="label">Passenger Name:</span> <span className="value">{quote.nome_cliente || quote.client_name || 'Nome do Cliente'}</span></p>
-          <p><span className="label">Contact:</span> <span className="value">{quote.telefone_cliente || quote.client_phone || '+1 347 848-7765'}</span></p>
+          <p><span className="label">Full Name *:</span> <span className="value">{quote.nome_cliente || quote.client_name || 'Mayssa Ferreira Costa'}</span></p>
+          <p><span className="label">Phone *:</span> <span className="value">{quote.telefone_cliente || quote.client_phone || '+1 347 848-7765'}</span></p>
+          <p><span className="label">Email *:</span> <span className="value">{quote.email_cliente || quote.client_email || 'mayssacosta16@gmail.com'}</span></p>
         </div>
 
         <div className="section">
-          <h2>Carrier Details</h2>
-          <p><span className="label">N° Passengers:</span> <span className="value">{quote.qtd_passageiros || quote.passengers || '01'}</span></p>
-          <p><span className="label">Baggage:</span> <span className="value">{quote.qtd_bagagens || quote.luggage || '01'}M + 00S</span></p>
-          <p><span className="label">Vehicle:</span> <span className="value">{quote.veiculo || quote.vehicle_type || 'SUV Lux'}</span></p>
+          <h2>Vehicle and Services</h2>
+          <p><span className="label">Vehicle Type *:</span> <span className="value">{quote.veiculo || quote.vehicle_type || 'Selecione um veículo'}</span></p>
+          <p><span className="label">Number of Passengers:</span> <span className="value">{quote.qtd_passageiros || quote.passengers || '1'}</span></p>
+          <p><span className="label">Large Luggage:</span> <span className="value">{quote.bagagens_grandes || '0'}</span></p>
+          <p><span className="label">Small Luggage:</span> <span className="value">{quote.bagagens_pequenas || '0'}</span></p>
         </div>
 
         <div className="section">
           <h2>Pick-up Information</h2>
-          <p><span className="label">From:</span> <span className="value">{quote.origem || quote.origin || 'Local de origem'}</span></p>
-          <p><span className="label">Date/Time:</span> <span className="value">{quote.data_ida || quote.pickup_date ? new Date(quote.data_ida || quote.pickup_date).toLocaleDateString('pt-BR') : 'Data não informada'} {quote.hora_ida || quote.pickup_time || ''}</span></p>
-          <p><span className="label">Flight number:</span> <span className="value">{quote.numero_voo || quote.flight_number || 'N/A'}</span></p>
+          <p><span className="label">Origin Address *:</span> <span className="value">{quote.origem || quote.origin || 'Casa'}</span></p>
+          <p><span className="label">Travel Date *:</span> <span className="value">{quote.data_ida || quote.pickup_date || 'dd/mm/aaaa'}</span></p>
+          <p><span className="label">Time *:</span> <span className="value">{quote.horario || 'HH:MM'}</span></p>
+          {(quote.numero_voo || quote.flight_number) && (
+            <p><span className="label">Flight Number:</span> <span className="value">{quote.numero_voo || quote.flight_number}</span></p>
+          )}
+          {quote.airline && (
+            <p><span className="label">Airline:</span> <span className="value">{quote.airline}</span></p>
+          )}
         </div>
 
         <div className="section">
           <h2>Drop-off Information</h2>
-          <p><span className="label">To:</span> <span className="value">{quote.destino || quote.destination || 'Local de destino'}</span></p>
+          <p><span className="label">Destination Address *:</span> <span className="value">{quote.destino || quote.destination || 'Digite o endereço de destino...'}</span></p>
+        </div>
+
+        <div className="section">
+          <h2>Trip Type</h2>
+          <p><span className="label">Service Type:</span> <span className="value">{quote.tipo_trajeto || quote.trip_type || 'One-way'}</span></p>
+          {(quote.volta || quote.return_date) && (
+            <p><span className="label">Return Date/Time:</span> <span className="value">{quote.volta || quote.return_date}</span></p>
+          )}
+          {quote.service_hours && (
+            <p><span className="label">Service Hours:</span> <span className="value">{quote.service_hours}</span></p>
+          )}
+        </div>
+
+        <div className="section">
+          <h2>Pricing Details</h2>
+          <p><span className="label">Base Price:</span> <span className="value">{quote.preco_base || quote.base_price || 'U$ 250.00'}</span></p>
+          {(quote.valor_extras || quote.extras_price) && (
+            <p><span className="label">Additional Services:</span> <span className="value">{quote.valor_extras || quote.extras_price}</span></p>
+          )}
+          <p><span className="label">Total Amount:</span> <span className="value">{quote.valor_total || 'U$ 300.00'}</span></p>
+        </div>
+
+
+
+        {(quote.extras || quote.additional_services) && (
+          <div className="section">
+            <h2>Additional Services</h2>
+            {quote.extras && Array.isArray(quote.extras) ? (
+              <ul>
+                {quote.extras.map((extra, index) => (
+                  <li key={index}>{extra}</li>
+                ))}
+              </ul>
+            ) : quote.additional_services && Array.isArray(quote.additional_services) ? (
+              <ul>
+                {quote.additional_services.map((service, index) => (
+                  <li key={index}>{service}</li>
+                ))}
+              </ul>
+            ) : (
+              <p><span className="value">{quote.extras || quote.additional_services}</span></p>
+            )}
+          </div>
+        )}
+
+        <div className="section">
+          <h2>Quote Validity</h2>
+          <p><span className="label">Valid for:</span> <span className="value">{quote.validade || quote.validity || '48 hours'}</span></p>
         </div>
 
         <div className="section">

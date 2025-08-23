@@ -344,6 +344,137 @@ export type Database = {
           price?: number
         }
       }
+      quotes: {
+        Row: {
+          id: string
+          booking_reference: string
+          status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          customer_name: string
+          customer_email: string
+          customer_phone: string
+          quote_type: 'one-way' | 'round-trip' | 'hourly'
+          pickup_address: string
+          pickup_coordinates: any | null
+          pickup_zone_id: string | null
+          pickup_date: string
+          pickup_time: string
+          destination_address: string
+          destination_coordinates: any | null
+          destination_zone_id: string | null
+          return_date: string | null
+          return_time: string | null
+          return_pickup_address: string | null
+          return_pickup_coordinates: any | null
+          return_pickup_zone_id: string | null
+          return_destination_address: string | null
+          return_destination_coordinates: any | null
+          return_destination_zone_id: string | null
+          service_hours: number | null
+          service_type: 'airport-dropoff' | 'airport-pickup' | null
+          flight_number: string | null
+          airline: string | null
+          vehicle_category_id: string
+          passengers: number
+          luggage_large: number
+          luggage_small: number
+          base_price: number
+          extras_price: number | null
+          total_amount: number
+          extras: any | null
+          expires_days: number
+          expires_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+          created_by: string | null
+        }
+        Insert: {
+          id?: string
+          booking_reference: string
+          status?: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          customer_name: string
+          customer_email: string
+          customer_phone: string
+          quote_type: 'one-way' | 'round-trip' | 'hourly'
+          pickup_address: string
+          pickup_coordinates?: any | null
+          pickup_zone_id?: string | null
+          pickup_date: string
+          pickup_time: string
+          destination_address: string
+          destination_coordinates?: any | null
+          destination_zone_id?: string | null
+          return_date?: string | null
+          return_time?: string | null
+          return_pickup_address?: string | null
+          return_pickup_coordinates?: any | null
+          return_pickup_zone_id?: string | null
+          return_destination_address?: string | null
+          return_destination_coordinates?: any | null
+          return_destination_zone_id?: string | null
+          service_hours?: number | null
+          service_type?: 'airport-dropoff' | 'airport-pickup' | null
+          flight_number?: string | null
+          airline?: string | null
+          vehicle_category_id: string
+          passengers?: number
+          luggage_large?: number
+          luggage_small?: number
+          base_price?: number
+          extras_price?: number | null
+          total_amount?: number
+          extras?: any | null
+          expires_days?: number
+          expires_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+        Update: {
+          id?: string
+          booking_reference?: string
+          status?: 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
+          customer_name?: string
+          customer_email?: string
+          customer_phone?: string
+          quote_type?: 'one-way' | 'round-trip' | 'hourly'
+          pickup_address?: string
+          pickup_coordinates?: any | null
+          pickup_zone_id?: string | null
+          pickup_date?: string
+          pickup_time?: string
+          destination_address?: string
+          destination_coordinates?: any | null
+          destination_zone_id?: string | null
+          return_date?: string | null
+          return_time?: string | null
+          return_pickup_address?: string | null
+          return_pickup_coordinates?: any | null
+          return_pickup_zone_id?: string | null
+          return_destination_address?: string | null
+          return_destination_coordinates?: any | null
+          return_destination_zone_id?: string | null
+          service_hours?: number | null
+          service_type?: 'airport-dropoff' | 'airport-pickup' | null
+          flight_number?: string | null
+          airline?: string | null
+          vehicle_category_id?: string
+          passengers?: number
+          luggage_large?: number
+          luggage_small?: number
+          base_price?: number
+          extras_price?: number | null
+          total_amount?: number
+          extras?: any | null
+          expires_days?: number
+          expires_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string | null
+        }
+      }
     }
     Views: {
       vw_bookings_full: {
@@ -401,4 +532,4 @@ export type Database = {
 export const supabase = createBrowserClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-) 
+)

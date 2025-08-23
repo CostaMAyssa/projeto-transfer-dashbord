@@ -2,13 +2,16 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useZones } from "@/hooks/useZones"
 import { useVehicleCategories } from "@/hooks/useVehicleCategories"
 import { useZonePricing } from "@/hooks/useZonePricing"
 import { useExtras } from "@/hooks/useExtras"
+import { createQuote } from "@/hooks/useQuotes"
 import { AddressAutocomplete } from "@/components/AddressAutocomplete"
 import { detectZone } from "@/lib/zone-pricing"
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete"
+import { redirectAfterSave } from "./fix-redirect"
 import { 
   ArrowLeft,
   Save,
@@ -25,6 +28,7 @@ import {
 } from "lucide-react"
 
 export default function NewQuotePage() {
+  const router = useRouter()
   const [formData, setFormData] = useState({
     // Dados do cliente
     customer_name: "",
@@ -76,6 +80,18 @@ export default function NewQuotePage() {
     notes: "",
 
   })
+  
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  
+  // Componente para exibir erro de campo
+  const FieldError = ({ fieldName }: { fieldName: string }) => {
+    if (!validationErrors[fieldName]) return null
+    return (
+      <p className="text-red-500 text-sm mt-1">
+        {validationErrors[fieldName]}
+      </p>
+    )
+  }
 
   const [isSaving, setIsSaving] = useState(false)
 
@@ -374,7 +390,7 @@ export default function NewQuotePage() {
     if (formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id && !(hasOutOfCoverage && formData.base_price > 0)) {
       calculateTotal()
     }
-  }, [formData.vehicle_category_id, formData.pickup_zone_id, formData.destination_zone_id, formData.quote_type, formData.service_hours, formData.extras, getPrice, categories])
+  }, [formData.vehicle_category_id, formData.pickup_zone_id, formData.destination_zone_id, formData.quote_type, formData.service_hours, formData.extras])
 
   // Recalcular quando os dados de preços carregarem (exceto em modo de ajuste manual)
   useEffect(() => {
@@ -389,7 +405,7 @@ export default function NewQuotePage() {
     if (!pricingLoading && !categoriesLoading && !extrasLoading && formData.vehicle_category_id && formData.pickup_zone_id && formData.destination_zone_id && !(hasOutOfCoverage && formData.base_price > 0)) {
       calculateTotal()
     }
-  }, [pricingLoading, categoriesLoading, extrasLoading])
+  }, [pricingLoading, categoriesLoading, extrasLoading, formData.vehicle_category_id, formData.pickup_zone_id, formData.destination_zone_id])
 
   // Função para lidar com seleção de endereço de origem
   const { getAddressDetails } = useAddressAutocomplete()
@@ -459,48 +475,115 @@ export default function NewQuotePage() {
     }
   }
 
+  // Função para validar campos obrigatórios
+  const validateRequiredFields = () => {
+    const errors: Record<string, string> = {}
+    
+    // Campos obrigatórios do cliente
+    if (!formData.customer_name.trim()) {
+      errors.customer_name = 'Nome completo é obrigatório'
+    }
+    if (!formData.customer_email.trim()) {
+      errors.customer_email = 'E-mail é obrigatório'
+    }
+    if (!formData.customer_phone.trim()) {
+      errors.customer_phone = 'Telefone é obrigatório'
+    }
+    
+    // Campos obrigatórios do trajeto
+    if (!formData.pickup_address.trim()) {
+      errors.pickup_address = 'Endereço de origem é obrigatório'
+    }
+    if (!formData.pickup_date) {
+      errors.pickup_date = 'Data da viagem é obrigatória'
+    }
+    if (!formData.pickup_time) {
+      errors.pickup_time = 'Horário é obrigatório'
+    }
+    
+    // Validar destino baseado no tipo de viagem
+    if (formData.quote_type === 'hourly') {
+      if (!formData.airport_destination.trim()) {
+        errors.airport_destination = 'Endereço de destino é obrigatório'
+      }
+    } else {
+      if (!formData.destination_address.trim()) {
+        errors.destination_address = 'Endereço de destino é obrigatório'
+      }
+    }
+    
+    // Campos obrigatórios do veículo
+    if (!formData.vehicle_category_id) {
+      errors.vehicle_category_id = 'Tipo de veículo é obrigatório'
+    }
+    if (formData.passengers < 1) {
+      errors.passengers = 'Número de passageiros deve ser pelo menos 1'
+    }
+    
+    return errors
+  }
+
   const handleSave = async (status: 'draft' | 'sent') => {
+    // Validar campos obrigatórios
+    const errors = validateRequiredFields()
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors)
+      setIsSaving(false)
+      return
+    }
+    
+    // Limpar erros se validação passou
+    setValidationErrors({})
     setIsSaving(true)
     
-    // Logs detalhados do orçamento completo
-    console.log('💾 ===== SALVANDO ORÇAMENTO COMPLETO =====')
-    console.log('💾 Status:', status)
-    console.log('💾 Dados do Cliente:', {
-      nome: formData.customer_name,
-      email: formData.customer_email,
-      telefone: formData.customer_phone
-    })
-    console.log('💾 Tipo de Viagem:', formData.quote_type)
-    console.log('💾 Endereços:', {
-      origem: formData.pickup_address,
-      destino: formData.destination_address,
-      destinoAeroporto: formData.airport_destination,
-      origemVolta: formData.return_pickup_address,
-      destinoVolta: formData.return_destination_address
-    })
-    console.log('💾 Veículo:', {
-        categoria: formData.vehicle_category_id,
-        passageiros: formData.passengers,
-        bagagensGrandes: formData.luggage_large,
-        bagagensPequenas: formData.luggage_small
-      })
-    console.log('💾 Preços:', {
-      precoBase: formData.base_price,
-      extras: formData.extras,
-      total: formData.total_amount
-    })
-    console.log('💾 Horários:', {
-       dataHora: formData.pickup_date,
-       horasServico: formData.service_hours
-     })
-    console.log('💾 FormData Completo:', formData)
-    console.log('💾 ===== FIM DO ORÇAMENTO =====')
-    
-    // Aqui você salvaria no Supabase
-    console.log('Salvando orçamento...', { ...formData, status })
+    try {
+      // Calcular preços dos extras
+      const extrasTotal = Object.entries(formData.extras || {}).reduce((sum, [id, qty]) => {
+        const extra = (availableExtras || []).find((e: any) => e.id === id)
+        return sum + (extra ? Number(extra.price || 0) * Number(qty as number) : 0)
+      }, 0)
 
-    if (status === 'draft') {
-      try {
+      // Preparar dados para salvar no banco
+      const quoteData = {
+        booking_reference: `QT${Date.now().toString().slice(-6)}`,
+        status,
+        customer_name: formData.customer_name,
+        customer_email: formData.customer_email,
+        customer_phone: formData.customer_phone,
+        quote_type: formData.quote_type,
+        pickup_address: formData.pickup_address,
+        pickup_date: formData.pickup_date,
+        pickup_time: formData.pickup_time,
+        destination_address: formData.quote_type === 'hourly' ? formData.airport_destination : formData.destination_address,
+        return_date: formData.quote_type === 'round-trip' ? formData.return_date : null,
+        return_time: formData.quote_type === 'round-trip' ? formData.return_time : null,
+        service_hours: formData.quote_type === 'hourly' ? formData.service_hours : null,
+        service_type: formData.quote_type === 'hourly' ? (formData.service_type || null) : null,
+        flight_number: formData.no_flight_info ? null : formData.flight_number,
+        airline: formData.no_flight_info ? null : formData.airline,
+        vehicle_category_id: formData.vehicle_category_id,
+        passengers: formData.passengers || 1,
+        luggage_large: formData.luggage_large || 0,
+        luggage_small: formData.luggage_small || 0,
+        base_price: Number(formData.base_price || 0),
+        extras_price: extrasTotal,
+        total_amount: Number(formData.total_amount || 0),
+        extras: Object.keys(formData.extras || {}).length > 0 ? formData.extras : null,
+        expires_days: formData.expires_days || 7,
+        notes: formData.notes || null
+      }
+
+      // Salvar no banco de dados
+      const savedQuote = await createQuote(quoteData)
+      
+      if (!savedQuote) {
+        throw new Error('Erro ao salvar orçamento')
+      }
+
+      console.log('✅ Orçamento salvo com sucesso:', savedQuote)
+
+      if (status === 'sent') {
+        // Gerar dados do voucher para preview
         const category = categories.find(c => c.id === formData.vehicle_category_id)
         const extrasList = Object.entries(formData.extras || {})
           .filter(([, q]) => Number(q as number) > 0)
@@ -509,19 +592,15 @@ export default function NewQuotePage() {
             return `${extra?.name || 'Extra'} x${qty}`
           })
 
-        const extrasTotal = Object.entries(formData.extras || {}).reduce((sum, [id, qty]) => {
-          const extra = (availableExtras || []).find((e: any) => e.id === id)
-          return sum + (extra ? Number(extra.price || 0) * Number(qty as number) : 0)
-        }, 0)
-
-        const precoBaseFmt = `$${Number(formData.base_price || 0).toFixed(2)}`;
-        const extrasFmt = `$${Number(extrasTotal).toFixed(2)}`;
-        const totalFmt = `$${Number(formData.total_amount || 0).toFixed(2)}`;
-        const validadeFmt = `${formData.expires_days} dia${formData.expires_days === 1 ? '' : 's'}`;
-        const tipoTrajeto = formData.quote_type === 'one-way' ? 'One-way' : formData.quote_type === 'round-trip' ? 'Round-trip' : 'Hourly';
+        const precoBaseFmt = `$${Number(formData.base_price || 0).toFixed(2)}`
+        const extrasFmt = `$${Number(extrasTotal).toFixed(2)}`
+        const totalFmt = `$${Number(formData.total_amount || 0).toFixed(2)}`
+        const validadeFmt = `${formData.expires_days || 7} dia${(formData.expires_days || 7) === 1 ? '' : 's'}`
+        const tipoTrajeto = formData.quote_type === 'one-way' ? 'One-way' : formData.quote_type === 'round-trip' ? 'Round-trip' : 'Hourly'
 
         const voucherData = {
-          booking_reference: `DRFT-${Date.now().toString(36).toUpperCase().slice(-6)}`,
+          id: savedQuote.id,
+          booking_reference: savedQuote.booking_reference,
           data_emissao: new Date().toLocaleDateString('pt-BR'),
           nome_cliente: formData.customer_name || '-',
           email_cliente: formData.customer_email || '-',
@@ -536,29 +615,27 @@ export default function NewQuotePage() {
           veiculo: category?.name || '-',
           qtd_passageiros: String(formData.passengers || 0),
           qtd_bagagens: String((formData.luggage_large || 0) + (formData.luggage_small || 0)),
-          extras: extrasList,
+          extras: extrasList.length > 0 ? extrasList.join(', ') : 'Nenhum',
           preco_base: precoBaseFmt,
           valor_extras: extrasFmt,
           valor_total: totalFmt,
           validade: validadeFmt,
         }
 
-        const encoded = encodeURIComponent(JSON.stringify(voucherData))
-        if (typeof window !== 'undefined') {
-          window.location.href = `/quote/preview?data=${encoded}`
-        }
-      } catch (e) {
-        console.error('Erro ao gerar preview do voucher:', e)
-      } finally {
-        setIsSaving(false)
+        // Usar a função de redirecionamento com router
+        redirectAfterSave(router, status, voucherData)
+      } else {
+        // Rascunho salvo, redirecionar para lista
+        alert('Rascunho salvo com sucesso!')
+        // Usar a função de redirecionamento com router
+        redirectAfterSave(router, status)
       }
-      return
-    }
-
-    setTimeout(() => {
+    } catch (error) {
+      console.error('Erro ao salvar orçamento:', error)
+      alert('Erro ao salvar orçamento. Tente novamente.')
+    } finally {
       setIsSaving(false)
-      // Redirecionar para lista ou mostrar sucesso
-    }, 1000)
+    }
   }
 
   return (
@@ -613,11 +690,17 @@ export default function NewQuotePage() {
                 <input
                   type="text"
                   required
-                  className="input-standard w-full"
+                  className={`input-standard w-full ${validationErrors.customer_name ? 'border-red-500' : ''}`}
                   value={formData.customer_name}
-                  onChange={(e) => setFormData(prev => ({...prev, customer_name: e.target.value}))}
+                  onChange={(e) => {
+                    setFormData(prev => ({...prev, customer_name: e.target.value}))
+                    if (validationErrors.customer_name) {
+                      setValidationErrors(prev => ({...prev, customer_name: ''}))
+                    }
+                  }}
                   placeholder="João Silva"
                 />
+                <FieldError fieldName="customer_name" />
               </div>
               
               <div>
@@ -627,24 +710,37 @@ export default function NewQuotePage() {
                 <input
                   type="email"
                   required
-                  className="input-standard w-full"
+                  className={`input-standard w-full ${validationErrors.customer_email ? 'border-red-500' : ''}`}
                   value={formData.customer_email}
-                  onChange={(e) => setFormData(prev => ({...prev, customer_email: e.target.value}))}
+                  onChange={(e) => {
+                    setFormData(prev => ({...prev, customer_email: e.target.value}))
+                    if (validationErrors.customer_email) {
+                      setValidationErrors(prev => ({...prev, customer_email: ''}))
+                    }
+                  }}
                   placeholder="joao@email.com"
                 />
+                <FieldError fieldName="customer_email" />
               </div>
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-text-dark mb-2">
-                  Telefone
+                  Telefone *
                 </label>
                 <input
                   type="tel"
-                  className="input-standard w-full"
+                  required
+                  className={`input-standard w-full ${validationErrors.customer_phone ? 'border-red-500' : ''}`}
                   value={formData.customer_phone}
-                  onChange={(e) => setFormData(prev => ({...prev, customer_phone: e.target.value}))}
+                  onChange={(e) => {
+                    setFormData(prev => ({...prev, customer_phone: e.target.value}))
+                    if (validationErrors.customer_phone) {
+                      setValidationErrors(prev => ({...prev, customer_phone: ''}))
+                    }
+                  }}
                   placeholder="(11) 99999-9999"
                 />
+                <FieldError fieldName="customer_phone" />
               </div>
             </div>
           </div>
@@ -658,7 +754,11 @@ export default function NewQuotePage() {
             
             <div className="space-y-4">
               {/* Tipo de orçamento */}
-              <div className="flex flex-wrap gap-2">
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Tipo de Orçamento *
+                </label>
+                <div className="flex flex-wrap gap-2">
                 {([
                   { id: "one-way", label: "One-way" },
                   { id: "round-trip", label: "Round-trip" },
@@ -720,6 +820,7 @@ export default function NewQuotePage() {
                     {t.label}
                   </button>
                 ))}
+                </div>
               </div>
 
               <div>
@@ -728,11 +829,18 @@ export default function NewQuotePage() {
                 </label>
                 <AddressAutocomplete
                   value={formData.pickup_address}
-                  onChange={(value) => setFormData(prev => ({ ...prev, pickup_address: value }))}
+                  onChange={(value) => {
+                    setFormData(prev => ({ ...prev, pickup_address: value }))
+                    if (validationErrors.pickup_address) {
+                      setValidationErrors(prev => ({...prev, pickup_address: ''}))
+                    }
+                  }}
                   onPlaceSelect={handlePickupPlaceSelect}
                   placeholder="Digite o endereço de origem..."
                   required
+                  className={validationErrors.pickup_address ? 'border-red-500' : ''}
                 />
+                <FieldError fieldName="pickup_address" />
                 {formData.pickup_address && (
                   <div className="mt-1 text-sm">
                     {formData.pickup_zone_id ? (
@@ -755,11 +863,18 @@ export default function NewQuotePage() {
                   </label>
                   <AddressAutocomplete
                     value={formData.destination_address}
-                    onChange={(value) => setFormData(prev => ({ ...prev, destination_address: value }))}
+                    onChange={(value) => {
+                      setFormData(prev => ({ ...prev, destination_address: value }))
+                      if (validationErrors.destination_address) {
+                        setValidationErrors(prev => ({...prev, destination_address: ''}))
+                      }
+                    }}
                     onPlaceSelect={handleDestinationPlaceSelect}
                     placeholder="Digite o endereço de destino..."
                     required
+                    className={validationErrors.destination_address ? 'border-red-500' : ''}
                   />
+                  <FieldError fieldName="destination_address" />
                   {formData.destination_address && (
                     <div className="mt-1 text-sm">
                       {formData.destination_zone_id ? (
@@ -784,7 +899,7 @@ export default function NewQuotePage() {
                   <input
                     type="date"
                     required
-                    className="input-standard w-full"
+                    className={`input-standard w-full ${validationErrors.pickup_date ? 'border-red-500' : ''}`}
                     value={formData.pickup_date}
                     onChange={(e) => {
                       const newPickupDate = e.target.value
@@ -794,8 +909,12 @@ export default function NewQuotePage() {
                         pickup_date: newPickupDate,
                         trip_duration_days: duration
                       }))
+                      if (validationErrors.pickup_date) {
+                        setValidationErrors(prev => ({...prev, pickup_date: ''}))
+                      }
                     }}
                   />
+                  <FieldError fieldName="pickup_date" />
                 </div>
                 
                 <div>
@@ -805,10 +924,16 @@ export default function NewQuotePage() {
                   <input
                     type="time"
                     required
-                    className="input-standard w-full"
+                    className={`input-standard w-full ${validationErrors.pickup_time ? 'border-red-500' : ''}`}
                     value={formData.pickup_time}
-                    onChange={(e) => setFormData(prev => ({...prev, pickup_time: e.target.value}))}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, pickup_time: e.target.value}))
+                      if (validationErrors.pickup_time) {
+                        setValidationErrors(prev => ({...prev, pickup_time: ''}))
+                      }
+                    }}
                   />
+                  <FieldError fieldName="pickup_time" />
                 </div>
               </div>
 
@@ -901,11 +1026,18 @@ export default function NewQuotePage() {
                     </label>
                     <AddressAutocomplete
                       value={formData.airport_destination}
-                      onChange={(value) => setFormData(prev => ({ ...prev, airport_destination: value }))}
+                      onChange={(value) => {
+                        setFormData(prev => ({ ...prev, airport_destination: value }))
+                        if (validationErrors.airport_destination) {
+                          setValidationErrors(prev => ({...prev, airport_destination: ''}))
+                        }
+                      }}
                       onPlaceSelect={handleAirportDestinationPlaceSelect}
                       placeholder="Digite o endereço de destino..."
                       required
+                      className={validationErrors.airport_destination ? 'border-red-500' : ''}
                     />
+                    <FieldError fieldName="airport_destination" />
                     {formData.airport_destination && (
                       <div className="mt-1 text-sm">
                         {formData.destination_zone_id ? (
@@ -1099,9 +1231,14 @@ export default function NewQuotePage() {
                 </label>
                 <select
                   required
-                  className="input-standard w-full"
+                  className={`input-standard w-full ${validationErrors.vehicle_category_id ? 'border-red-500' : ''}`}
                   value={formData.vehicle_category_id}
-                  onChange={(e) => handleVehicleChange(e.target.value)}
+                  onChange={(e) => {
+                    handleVehicleChange(e.target.value)
+                    if (validationErrors.vehicle_category_id) {
+                      setValidationErrors(prev => ({...prev, vehicle_category_id: ''}))
+                    }
+                  }}
                 >
                   <option value="">Selecione um veículo</option>
                   {categories.map(category => (
@@ -1110,21 +1247,29 @@ export default function NewQuotePage() {
                     </option>
                   ))}
                 </select>
+                <FieldError fieldName="vehicle_category_id" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-text-dark mb-2">
-                    Número de Passageiros
+                    Número de Passageiros *
                   </label>
                   <input
                     type="number"
                     min="1"
                     max="8"
-                    className="input-standard w-full"
+                    required
+                    className={`input-standard w-full ${validationErrors.passengers ? 'border-red-500' : ''}`}
                     value={formData.passengers}
-                    onChange={(e) => setFormData(prev => ({...prev, passengers: parseInt(e.target.value)}))}
+                    onChange={(e) => {
+                      setFormData(prev => ({...prev, passengers: parseInt(e.target.value)}))
+                      if (validationErrors.passengers) {
+                        setValidationErrors(prev => ({...prev, passengers: ''}))
+                      }
+                    }}
                   />
+                  <FieldError fieldName="passengers" />
                 </div>
                 
                 <div>
