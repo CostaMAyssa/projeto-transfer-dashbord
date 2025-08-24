@@ -16,6 +16,7 @@ import {
   FileText
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { getQuoteByReference } from "@/hooks/useQuotes"
 
 export default function ClientQuotePage() {
   const params = useParams()
@@ -79,34 +80,47 @@ export default function ClientQuotePage() {
       return
     }
 
-    // fallback mock atual
-    setQuote({
-      id: quoteId,
-      customer_name: "João Silva",
-      customer_email: "joao@email.com",
-      origin: "Aeroporto JFK - Terminal 4",
-      destination: "Times Square Hotel - Manhattan",
-      pickup_date: "2025-01-25",
-      pickup_time: "14:30",
-      return_date: "2025-01-27",
-      return_time: "10:00",
-      vehicle_type: "Premium Sedan",
-      passengers: 2,
-      luggage: 3,
-      distance_km: 25,
-      base_price: 80,
-      price_per_km: 3.20,
-      extras: [
-        { name: "Wi-Fi durante viagem", price: 8 },
-        { name: "Água e bebidas", price: 10 }
-      ],
-      include_return: true,
-      total_amount: 438,
-      notes: "Voo internacional - favor aguardar 30 minutos no aeroporto.",
-      expires_at: "2025-01-18T14:30:00",
-      created_at: "2025-01-11T09:00:00",
-      status: "sent"
-    })
+    // Buscar dados reais do orçamento no banco de dados
+    const fetchQuote = async () => {
+      try {
+        const quoteData = await getQuoteByReference(quoteId)
+        
+        if (quoteData) {
+          // Mapear dados do banco para o formato esperado pelo componente
+          setQuote({
+            id: quoteData.booking_reference,
+            customer_name: quoteData.customer_name,
+            customer_email: quoteData.customer_email,
+            customer_phone: quoteData.customer_phone,
+            origin: quoteData.pickup_address,
+            destination: quoteData.destination_address,
+            pickup_date: quoteData.pickup_date,
+            pickup_time: quoteData.pickup_time,
+            return_date: quoteData.return_date,
+            return_time: quoteData.return_time,
+            vehicle_type: quoteData.vehicle_categories?.name || 'Not specified',
+            passengers: quoteData.passengers,
+            luggage: (quoteData.luggage_large || 0) + (quoteData.luggage_small || 0),
+            base_price: quoteData.base_price,
+            extras: quoteData.extras || [],
+            include_return: quoteData.quote_type === 'round-trip',
+            total_amount: quoteData.total_amount,
+            notes: quoteData.notes,
+            expires_at: quoteData.expires_at,
+            created_at: quoteData.created_at,
+            status: quoteData.status,
+            numero_voo: quoteData.flight_number
+          })
+        } else {
+          setQuote({ error: 'not_found' })
+        }
+      } catch (error) {
+        console.error('Erro ao buscar orçamento:', error)
+        setQuote({ error: 'fetch_error' })
+      }
+    }
+    
+    fetchQuote()
   }, [quoteId, searchParams])
 
   if (quote?.error === 'missing') {
@@ -121,6 +135,22 @@ export default function ClientQuotePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-600">Não foi possível carregar o preview do voucher.</p>
+      </div>
+    )
+  }
+
+  if (quote?.error === 'not_found') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Orçamento não encontrado.</p>
+      </div>
+    )
+  }
+
+  if (quote?.error === 'fetch_error') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-600">Erro ao carregar dados do orçamento. Tente novamente.</p>
       </div>
     )
   }
