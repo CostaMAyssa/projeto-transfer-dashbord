@@ -28,6 +28,9 @@ export default function QuotesPage() {
   const [filter, setFilter] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const { quotes, loading, error, refetch } = useQuotes()
+  // Add state to control details modal
+  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [selectedQuote, setSelectedQuote] = useState<any | null>(null)
 
   // Função para formatar trajeto completo baseado no tipo
   const formatTrajectory = (quote: any) => {
@@ -341,13 +344,13 @@ export default function QuotesPage() {
                           {new Date(quote.created_at).toLocaleDateString('pt-BR')}
                         </div>
                         <div className="flex space-x-2">
-                          <Link 
-                            href={`/admin/quotes/${quote.booking_reference}`}
+                          <button 
+                            onClick={() => { setSelectedQuote(quote); setShowDetailsModal(true) }}
                             className="text-blue-600 hover:text-blue-900"
                             title="Visualizar"
                           >
                             <Eye className="h-4 w-4" />
-                          </Link>
+                          </button>
                           <button className="text-red-600 hover:text-red-900" title="Excluir">
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -361,6 +364,120 @@ export default function QuotesPage() {
           </table>
         </div>
       </div>
+
+      {/* Details Modal */}
+      {showDetailsModal && selectedQuote && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-3xl w-full shadow-xl border border-border">
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <div>
+                <h2 className="text-xl font-medium text-text-dark">Detalhes do Orçamento</h2>
+                <p className="text-sm text-gray-500">Ref: {selectedQuote.booking_reference} • Criado em {new Date(selectedQuote.created_at).toLocaleString('pt-BR')}</p>
+              </div>
+              <button
+                className="px-3 py-1 text-gray-600 hover:text-gray-800"
+                onClick={() => { setShowDetailsModal(false); setSelectedQuote(null) }}
+                aria-label="Fechar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Cliente */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium text-text-dark">Cliente</h3>
+                <p className="text-sm text-gray-700 font-medium">{selectedQuote.customer_name}</p>
+                <p className="text-sm text-gray-500">{selectedQuote.customer_email}</p>
+                {selectedQuote.customer_phone && (
+                  <p className="text-sm text-gray-500">{selectedQuote.customer_phone}</p>
+                )}
+              </div>
+
+              {/* Valor & Status */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium text-text-dark">Valor & Status</h3>
+                <p className="text-2xl font-bold text-secondary">R$ {selectedQuote.total_amount?.toFixed(2) || '0.00'}</p>
+                <div className="text-xs text-gray-600">
+                  {selectedQuote.status === 'draft' && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">Rascunho</span>
+                  )}
+                  {selectedQuote.status === 'sent' && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">Enviado</span>
+                  )}
+                  {selectedQuote.status === 'accepted' && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">Aceito</span>
+                  )}
+                  {selectedQuote.status === 'expired' && (
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">Expirado</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Trajeto */}
+              <div className="md:col-span-2 space-y-2">
+                <h3 className="text-lg font-medium text-text-dark">Trajeto</h3>
+                <div className="text-sm text-gray-900 whitespace-pre-line">
+                  {(() => {
+                    const t = formatTrajectory(selectedQuote)
+                    return `${t.route}`
+                  })()}
+                </div>
+                <div className="text-xs text-gray-500 whitespace-pre-line">
+                  {(() => {
+                    const t = formatTrajectory(selectedQuote)
+                    return `${t.datetime}${t.flight ? `\n${t.flight}` : ''}`
+                  })()}
+                </div>
+              </div>
+
+              {/* Veículo */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium text-text-dark">Veículo</h3>
+                <p className="text-sm text-gray-700">{(selectedQuote as any).vehicle_categories?.name || 'N/A'}</p>
+                {(selectedQuote as any).vehicle_categories?.capacity && (
+                  <p className="text-xs text-gray-500">Capacidade: {(selectedQuote as any).vehicle_categories.capacity}</p>
+                )}
+                {typeof selectedQuote.passengers !== 'undefined' && (
+                  <p className="text-xs text-gray-500">Passageiros: {selectedQuote.passengers}</p>
+                )}
+              </div>
+
+              {/* Ações */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-medium text-text-dark">Ações</h3>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => navigator.clipboard.writeText(`${window.location.origin}/quote/${selectedQuote.booking_reference}`)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary/90"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copiar Link Público
+                  </button>
+                  <a
+                    href={`${typeof window !== 'undefined' ? window.location.origin : ''}/quote/${selectedQuote.booking_reference}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 border border-border text-text-dark rounded-md hover:bg-gray-50"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Ver Página Pública
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 p-6 border-t border-border">
+              <button
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                onClick={() => { setShowDetailsModal(false); setSelectedQuote(null) }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
