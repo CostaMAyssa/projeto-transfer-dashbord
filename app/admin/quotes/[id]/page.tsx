@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
-import { getQuoteById } from "@/hooks/useQuotes"
+import { getQuoteByReference } from "@/hooks/useQuotes"
 import { 
   ArrowLeft,
   MapPin,
@@ -33,7 +33,7 @@ export default function QuoteDetailPage() {
       
       try {
         setLoading(true)
-        const quoteData = await getQuoteById(quoteId)
+        const quoteData = await getQuoteByReference(quoteId)
         
         if (quoteData) {
           setQuote(quoteData)
@@ -139,7 +139,7 @@ export default function QuoteDetailPage() {
             <ArrowLeft className="h-4 w-4" />
             Voltar
           </Link>
-          <h1 className="text-2xl font-bold text-text-dark">Orçamento {quote.id}</h1>
+          <h1 className="text-2xl font-bold text-text-dark">Orçamento {quote.booking_reference}</h1>
           <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${getStatusColor(quote.status)}`}>
             {getStatusIcon(quote.status)}
             <span className="text-sm font-medium">{getStatusLabel(quote.status)}</span>

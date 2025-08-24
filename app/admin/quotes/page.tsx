@@ -342,7 +342,7 @@ export default function QuotesPage() {
                         </div>
                         <div className="flex space-x-2">
                           <Link 
-                            href={`/admin/quotes/${quote.id}`}
+                            href={`/admin/quotes/${quote.booking_reference}`}
                             className="text-blue-600 hover:text-blue-900"
                             title="Visualizar"
                           >

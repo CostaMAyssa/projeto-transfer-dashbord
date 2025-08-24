@@ -29,6 +29,11 @@ export default function ClientQuotePage() {
     email: "",
     phone: ""
   })
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
     if (quoteId === 'preview') {
@@ -135,7 +140,7 @@ export default function ClientQuotePage() {
 
   const isExpired = quote && new Date(quote.expires_at) < new Date()
 
-  if (!quote) {
+  if (!isClient || !quote) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -147,252 +152,290 @@ export default function ClientQuotePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img src="/img/logo.png" alt="AZ Transfer" className="h-12 w-auto" />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Orçamento #{quote.id}</h1>
-                <p className="text-gray-600">Transfer Executivo</p>
-              </div>
-            </div>
-            
-            <div className="text-right">
-              <div className="text-3xl font-bold text-secondary">${quote.total_amount.toFixed(2)}</div>
-              <p className="text-sm text-gray-600">
-                Válido até {new Date(quote.expires_at).toLocaleDateString('pt-BR')}
-              </p>
-            </div>
+    <div style={{
+      fontFamily: "'Helvetica Neue', Arial, sans-serif",
+      background: "#f8f9fa",
+      margin: 0,
+      padding: "20px",
+      color: "#2a2a2a",
+      minHeight: "100vh"
+    }}>
+      <div style={{
+        background: "#ffffff",
+        maxWidth: "800px",
+        margin: "auto",
+        padding: "30px",
+        border: "1px solid #ddd",
+        borderRadius: "6px",
+        boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
+      }}>
+        {/* Header */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px"
+        }}>
+          <img 
+            src="/images/az-logo.png" 
+            alt="AZ Transfer Logo" 
+            style={{ maxHeight: "60px" }}
+          />
+          <a 
+            href="https://instagram.com/aztransfer" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <img 
+              src="https://cdn-icons-png.flaticon.com/512/2111/2111463.png" 
+              alt="Instagram" 
+              style={{ width: "30px", height: "30px" }}
+            />
+          </a>
+        </div>
+
+        <h1 style={{
+          fontSize: "22px",
+          color: "#db4038",
+          borderBottom: "2px solid #db4038",
+          paddingBottom: "8px",
+          marginBottom: "20px",
+          textAlign: "center"
+        }}>
+          Voucher / Booking Confirmation
+        </h1>
+        {/* Booking Information */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Booking Information</h2>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Booking Reference:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.id || 'Loading...'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Issue Date:</span>{' '}
+            <span style={{ color: '#000' }}>
+              {quote?.created_at ? (() => {
+                try {
+                  return new Date(quote.created_at).toLocaleDateString('pt-BR', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                } catch {
+                  return new Date(quote.created_at).toLocaleDateString()
+                }
+              })() : 'Loading...'}
+            </span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Total Price:</span>{' '}
+            <span style={{ color: '#000', fontSize: '16px', fontWeight: 'bold' }}>
+              ${quote?.total_amount || '0.00'}
+            </span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Status:</span>{' '}
+            <span style={{ 
+              color: status === 'accepted' ? '#16a34a' : 
+                     status === 'rejected' ? '#dc2626' : 
+                     isExpired ? '#6b7280' : '#eab308',
+              fontWeight: 'bold'
+            }}>
+              {status === 'accepted' ? 'Accepted' :
+               status === 'rejected' ? 'Rejected' :
+               isExpired ? 'Expired' :
+               'Pending'}
+            </span>
+          </p>
+        </div>
+
+        {/* Traveller Information */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Traveller Information</h2>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Passenger Name:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.customer_name || 'Not provided'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Contact:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.customer_phone || 'Not provided'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Email:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.customer_email || 'Not provided'}</span>
+          </p>
+        </div>
+
+        {/* Carrier Details */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Carrier Details</h2>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>N° Passengers:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.passengers || 'Not specified'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Baggage:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.luggage || 'Not specified'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Vehicle:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.vehicle_type || 'Not specified'}</span>
+          </p>
+        </div>
+
+        {/* Pick-up Information */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Pick-up Information</h2>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>From:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.origin || 'Not specified'}</span>
+          </p>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Date/Time:</span>{' '}
+            <span style={{ color: '#000' }}>
+              {quote?.pickup_date && quote?.pickup_time ? (() => {
+                try {
+                  return new Date(quote.pickup_date + 'T' + quote.pickup_time).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                } catch {
+                  return `${quote.pickup_date} ${quote.pickup_time}`
+                }
+              })() : 'Not specified'}
+            </span>
+          </p>
+          {quote?.numero_voo && (
+            <p style={{ margin: '4px 0', fontSize: '14px' }}>
+              <span style={{ fontWeight: 'bold', color: '#db4038' }}>Flight number:</span>{' '}
+              <span style={{ color: '#000' }}>{quote.numero_voo}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Drop-off Information */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Drop-off Information</h2>
+          <p style={{ margin: '4px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold', color: '#db4038' }}>To:</span>{' '}
+            <span style={{ color: '#000' }}>{quote?.destination || 'Not specified'}</span>
+          </p>
+          {quote?.include_return && quote?.return_date && quote?.return_time && (
+            <p style={{ margin: '4px 0', fontSize: '14px' }}>
+              <span style={{ fontWeight: 'bold', color: '#db4038' }}>Return Date/Time:</span>{' '}
+              <span style={{ color: '#000' }}>
+                {(() => {
+                  try {
+                    return new Date(quote.return_date + 'T' + quote.return_time).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  } catch {
+                    return `${quote.return_date} ${quote.return_time}`
+                  }
+                })()}
+              </span>
+            </p>
+          )}
+        </div>
+
+        {/* Cancellation Policy */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{
+            fontSize: '18px',
+            color: '#db4038',
+            marginTop: '20px',
+            marginBottom: '10px',
+            borderBottom: '1px solid #ddd',
+            paddingBottom: '5px'
+          }}>Cancellation Policy</h2>
+          <p style={{ margin: '8px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold' }}>Free Cancellation:</span> We offer <span style={{ color: '#dc2626', fontWeight: 'bold' }}>free cancellation</span> for reservations made, provided the cancellation is made at least <span style={{ color: '#dc2626', fontWeight: 'bold' }}>48 hours</span> in advance.
+          </p>
+          <p style={{ margin: '8px 0', fontSize: '14px' }}>
+            <span style={{ fontWeight: 'bold' }}>Cancellation Fee After 48 Hours:</span> In the event of a cancellation occurring after the <span style={{ color: '#dc2626', fontWeight: 'bold' }}>48-hour period</span>, a cancellation fee of <span style={{ color: '#dc2626', fontWeight: 'bold' }}>US$50</span> will be applied.
+          </p>
+
+          <div style={{
+            background: '#db4038',
+            color: '#fff',
+            padding: '15px',
+            borderRadius: '6px',
+            marginTop: '10px'
+          }}>
+            <p style={{ fontWeight: 'bold', margin: '0 0 8px 0' }}>IMPORTANT:</p>
+            <ul style={{ margin: '8px 0 0 15px', paddingLeft: '0' }}>
+              <li style={{ marginBottom: '4px' }}>We track your flight until it arrives.</li>
+              <li style={{ marginBottom: '4px' }}>Driver will establish contact via WhatsApp with you.</li>
+              <li style={{ marginBottom: '4px' }}>There is free Wi-Fi in the terminal and you can make a call at the Welcome Center counter.</li>
+              <li style={{ marginBottom: '4px' }}>Please use any of the telephone numbers shown below: <span style={{ fontWeight: 'bold' }}>+1 347 848-7765</span> or <span style={{ fontWeight: 'bold' }}>+1 347 313-2297</span>.</li>
+            </ul>
+            <ul style={{ margin: '15px 0 0 15px', paddingLeft: '0' }}>
+              <li style={{ marginBottom: '4px' }}>Nós rastreamos seu voo até que ele chegue.</li>
+              <li style={{ marginBottom: '4px' }}>O motorista entrará em contato via WhatsApp com você.</li>
+              <li style={{ marginBottom: '4px' }}>Há Wi-Fi gratuito no terminal e você pode fazer ligação no balcão do centro de Boas-Vindas.</li>
+              <li style={{ marginBottom: '4px' }}>Por favor, use um dos números de telefone mostrados a seguir: <span style={{ fontWeight: 'bold' }}>+1 347 848-7765</span> ou <span style={{ fontWeight: 'bold' }}>+1 347 313-2297</span>.</li>
+            </ul>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Status Banner */}
-        {status === 'accepted' && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-              <div>
-                <h3 className="text-green-800 font-medium">Orçamento Aceito!</h3>
-                <p className="text-green-700 text-sm">Entraremos em contato em breve para confirmar os detalhes.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {status === 'rejected' && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-6 w-6 text-red-600" />
-              <div>
-                <h3 className="text-red-800 font-medium">Orçamento Rejeitado</h3>
-                <p className="text-red-700 text-sm">Obrigado pelo interesse. Entre em contato para novos orçamentos.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {isExpired && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-6 w-6 text-yellow-600" />
-              <div>
-                <h3 className="text-yellow-800 font-medium">Orçamento Expirado</h3>
-                <p className="text-yellow-700 text-sm">Este orçamento expirou. Entre em contato conosco para um novo orçamento.</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Detalhes do Trajeto */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Trajeto */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <MapPin className="h-5 w-5 text-secondary" />
-                <h2 className="text-xl font-semibold text-gray-900">Trajeto</h2>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-3 h-3 bg-green-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="font-medium text-gray-900">Origem</p>
-                    <p className="text-gray-600">{quote.origin}</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start gap-4">
-                  <div className="w-3 h-3 bg-red-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="font-medium text-gray-900">Destino</p>
-                    <p className="text-gray-600">{quote.destination}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Data e Horário */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar className="h-5 w-5 text-secondary" />
-                <h2 className="text-xl font-semibold text-gray-900">Data e Horário</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <p className="font-medium text-gray-900 mb-2">Ida</p>
-                  <p className="text-gray-600">
-                    {new Date(quote.pickup_date).toLocaleDateString('pt-BR')} às {quote.pickup_time}
-                  </p>
-                </div>
-                
-                {quote.include_return && (
-                  <div>
-                    <p className="font-medium text-gray-900 mb-2">Volta</p>
-                    <p className="text-gray-600">
-                      {new Date(quote.return_date).toLocaleDateString('pt-BR')} às {quote.return_time}
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Veículo */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center gap-2 mb-4">
-                <Car className="h-5 w-5 text-secondary" />
-                <h2 className="text-xl font-semibold text-gray-900">Veículo</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="font-medium text-gray-900">Tipo</p>
-                  <p className="text-gray-600">{quote.vehicle_type}</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Passageiros</p>
-                  <p className="text-gray-600">{quote.passengers} pessoas</p>
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Bagagens</p>
-                  <p className="text-gray-600">{quote.luggage} grandes</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Observações */}
-            {quote.notes && (
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-                <div className="flex items-center gap-2 mb-4">
-                  <FileText className="h-5 w-5 text-secondary" />
-                  <h2 className="text-xl font-semibold text-gray-900">Observações</h2>
-                </div>
-                <p className="text-gray-600">{quote.notes}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Sidebar - Resumo e Ações */}
-          <div className="space-y-6">
-            {/* Resumo do Preço */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Resumo</h2>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Preço base:</span>
-                  <span className="font-medium">${quote.base_price.toFixed(2)}</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Distância ({quote.distance_km}km):</span>
-                  <span className="font-medium">${(quote.distance_km * quote.price_per_km).toFixed(2)}</span>
-                </div>
-                
-                {quote.include_return && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Viagem de volta:</span>
-                    <span className="font-medium">${(quote.base_price + (quote.distance_km * quote.price_per_km)).toFixed(2)}</span>
-                  </div>
-                )}
-                
-                {quote.extras.length > 0 && (
-                  <>
-                    <hr className="my-2" />
-                    <p className="text-sm font-medium text-gray-900">Extras:</p>
-                    {quote.extras.map((extra: any, index: number) => (
-                      <div key={index} className="flex justify-between text-sm">
-                        <span className="text-gray-600">{extra.name}:</span>
-                        <span className="font-medium">${extra.price.toFixed(2)}</span>
-                      </div>
-                    ))}
-                  </>
-                )}
-                
-                <hr className="my-3" />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Total:</span>
-                  <span className="text-secondary">${quote.total_amount.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Ações */}
-            {!isExpired && status === 'viewing' && (
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Aceitar Orçamento</h2>
-                
-                <div className="space-y-4">
-                  <button
-                    onClick={handleAccept}
-                    className="w-full bg-secondary text-white py-3 px-4 rounded-lg font-medium hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <CheckCircle className="h-5 w-5" />
-                    Aceitar Orçamento
-                  </button>
-                  
-                  <button
-                    onClick={handleReject}
-                    className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <XCircle className="h-5 w-5" />
-                    Rejeitar
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {status === 'accepting' && (
-              <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-                <div className="text-center">
-                  <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                  <p className="text-gray-600">Processando...</p>
-                </div>
-              </div>
-            )}
-
-            {/* Contato */}
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Contato</h2>
-              
-              <div className="space-y-3">
-                <a href="mailto:contato@aztransfer.com" className="flex items-center gap-3 text-gray-600 hover:text-secondary">
-                  <Mail className="h-5 w-5" />
-                  contato@aztransfer.com
-                </a>
-                <a href="tel:+13478487765" className="flex items-center gap-3 text-gray-600 hover:text-secondary">
-                  <Phone className="h-5 w-5" />
-                  +1 (347) 848-7765
-                </a>
-              </div>
-            </div>
-          </div>
+        {/* Footer */}
+        <div style={{
+          textAlign: 'center',
+          fontSize: '13px',
+          color: '#444',
+          marginTop: '25px',
+          paddingTop: '15px',
+          borderTop: '1px solid #ddd'
+        }}>
+          <p>📧 info@aztransferny.com | 📞 +1 347 848-7765 | ☎ +1 347 313-2297</p>
         </div>
       </div>
     </div>
