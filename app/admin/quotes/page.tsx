@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useQuotes } from "@/hooks/useQuotes"
+import { useQuotes, deleteQuote } from "@/hooks/useQuotes"
 import { 
   FileText,
   Plus,
@@ -28,6 +28,18 @@ export default function QuotesPage() {
   const [filter, setFilter] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const { quotes, loading, error, refetch } = useQuotes()
+
+  const handleDelete = async (quote: any) => {
+    if (window.confirm(`Tem certeza que deseja excluir o orçamento ${quote.booking_reference}?`)) {
+      const success = await deleteQuote(quote.id)
+      if (success) {
+        alert('Orçamento excluído com sucesso!')
+        refetch() // Recarrega a lista de orçamentos
+      } else {
+        alert('Erro ao excluir orçamento. Tente novamente.')
+      }
+    }
+  }
 
   // Função para formatar trajeto completo baseado no tipo
   const formatTrajectory = (quote: any) => {
@@ -348,7 +360,11 @@ export default function QuotesPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </Link>
-                          <button className="text-red-600 hover:text-red-900" title="Excluir">
+                          <button 
+                            className="text-red-600 hover:text-red-900" 
+                            title="Excluir"
+                            onClick={() => handleDelete(quote)}
+                          >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>

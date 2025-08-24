@@ -661,14 +661,7 @@ export default function NewQuotePage() {
             <Save className="h-4 w-4 mr-2" />
             Salvar Rascunho
           </button>
-          <button
-            onClick={() => handleSave('sent')}
-            disabled={isSaving || !formData.customer_email}
-            className="btn-primary bg-secondary flex items-center text-sm"
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Enviar Orçamento
-          </button>
+
         </div>
       </div>
 
@@ -1697,27 +1690,7 @@ export default function NewQuotePage() {
                 />
               </div>
 
-              {/* Botões de Ação */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => handleSave('draft')}
-                  disabled={isSaving}
-                  className="flex-1 bg-gray-100 text-text-dark px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  Salvar Rascunho
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSave('sent')}
-                  disabled={isSaving || !formData.customer_email}
-                  className="flex-1 bg-secondary text-white px-4 py-2 rounded-lg hover:bg-secondary/90 transition-colors flex items-center justify-center gap-2"
-                >
-                  <Send className="h-4 w-4" />
-                  Enviar Orçamento
-                </button>
-              </div>
+
             </div>
           </div>
         </div>
