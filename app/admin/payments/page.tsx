@@ -12,7 +12,12 @@ import {
   Loader2,
   QrCode,
   Mail,
-  Search
+  Search,
+  Shield,
+  Lock,
+  Copy,
+  MessageCircle,
+  FileText
 } from "lucide-react"
 
 export default function PaymentsPage() {
@@ -24,20 +29,57 @@ export default function PaymentsPage() {
   const [paymentStatus, setPaymentStatus] = useState("") // "success", "error", ""
   const [saveCard, setSaveCard] = useState(false)
   const [showVoucher, setShowVoucher] = useState(false)
+  const [stripeLoading, setStripeLoading] = useState(false)
+  const [generatedLink, setGeneratedLink] = useState("")
+  const [firstInstallmentPercentage, setFirstInstallmentPercentage] = useState(50)
 
-  // Filtrar apenas orçamentos com status 'sent' ou 'accepted' que podem ser pagos
+  // Estilos para o slider
+  const sliderStyles = `
+    .slider::-webkit-slider-thumb {
+      appearance: none;
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #10b981;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .slider::-moz-range-thumb {
+      height: 20px;
+      width: 20px;
+      border-radius: 50%;
+      background: #10b981;
+      cursor: pointer;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    .slider::-webkit-slider-track {
+      height: 8px;
+      background: linear-gradient(to right, #10b981 0%, #10b981 ${firstInstallmentPercentage}%, #e5e7eb ${firstInstallmentPercentage}%, #e5e7eb 100%);
+      border-radius: 4px;
+    }
+  `
+
+  // Filtrar orçamentos que podem ser pagos (incluindo mais status)
   const payableQuotes = quotes.filter(quote => 
-    quote.status === 'sent' || quote.status === 'accepted'
+    ['draft', 'sent', 'accepted', 'pending'].includes(quote.status)
   )
+  
+  // Debug temporário
+  console.log('Total quotes loaded:', quotes.length)
+  console.log('Payable quotes:', payableQuotes.length)
+  console.log('Quotes with Mayssa:', quotes.filter(q => q.customer_name?.toLowerCase().includes('mayssa')).length)
+  console.log('All customer names:', quotes.map(q => q.customer_name).filter(Boolean))
 
   const filteredQuotes = searchTerm ? payableQuotes.filter(quote => {
-    const searchLower = searchTerm.toLowerCase()
+    const searchLower = searchTerm.toLowerCase().trim()
     return (
-      quote.customer_name?.toLowerCase().includes(searchLower) ||
-      quote.pickup_address?.toLowerCase().includes(searchLower) ||
-      quote.destination_address?.toLowerCase().includes(searchLower) ||
-      quote.booking_reference?.toLowerCase().includes(searchLower) ||
-      quote.id.toString().includes(searchTerm)
+      quote.customer_name?.toLowerCase().trim().includes(searchLower) ||
+      quote.pickup_address?.toLowerCase().trim().includes(searchLower) ||
+      quote.destination_address?.toLowerCase().trim().includes(searchLower) ||
+      quote.booking_reference?.toLowerCase().trim().includes(searchLower) ||
+      quote.id.toString().includes(searchTerm.trim())
     )
   }) : payableQuotes
 
@@ -52,23 +94,57 @@ export default function PaymentsPage() {
   } : null
 
   const partialPaymentDetails = orderSummary ? {
-    firstInstallment: orderSummary.totalAmount * 0.5,
-    secondInstallment: orderSummary.totalAmount * 0.5,
-    secondPaymentDate: orderSummary.serviceDate
+    firstInstallment: orderSummary.totalAmount * (firstInstallmentPercentage / 100),
+    secondInstallment: orderSummary.totalAmount * ((100 - firstInstallmentPercentage) / 100),
+    firstPaymentDate: new Date().toISOString().split('T')[0],
+    secondPaymentDate: selectedQuote.pickup_date
   } : null
 
-  const handlePayment = async () => {
+  const generatePaymentLink = async () => {
     if (!orderSummary || !partialPaymentDetails) return
     
     setIsProcessing(true)
+    setStripeLoading(true)
     setPaymentStatus("")
     
-    // Simular processamento do pagamento
-    setTimeout(() => {
+    try {
+      // Dados para gerar o link de pagamento no Stripe
+      const paymentData = {
+        amount: paymentType === "partial" ? partialPaymentDetails.firstInstallment : orderSummary.totalAmount,
+        currency: 'brl',
+        quote_id: selectedQuote.id,
+        payment_type: paymentType,
+        customer_email: selectedQuote.customer_email || '',
+        customer_name: orderSummary.customerName,
+        service_description: orderSummary.serviceName,
+        save_card: saveCard && paymentType === "partial"
+      }
+      
+      console.log('Generating Stripe payment link with data:', paymentData)
+      
+      // Aqui será implementada a chamada para gerar o link no Stripe
+      // const response = await fetch('/api/stripe/create-payment-link', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(paymentData)
+      // })
+      // const { payment_link_url } = await response.json()
+      
+      // Simular geração do link por enquanto
+      setTimeout(() => {
+        const mockPaymentLink = `https://checkout.stripe.com/pay/cs_test_${Math.random().toString(36).substr(2, 9)}`
+        setIsProcessing(false)
+        setStripeLoading(false)
+        setPaymentStatus("link_generated")
+        setGeneratedLink(mockPaymentLink)
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Error generating payment link:', error)
       setIsProcessing(false)
-      setPaymentStatus("success")
-      setShowVoucher(true)
-    }, 3000)
+      setStripeLoading(false)
+      setPaymentStatus("error")
+    }
   }
 
   const downloadVoucher = () => {
@@ -85,6 +161,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-6">
+      <style dangerouslySetInnerHTML={{ __html: sliderStyles }} />
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-text-dark mb-2">Pagamento</h1>
@@ -145,10 +222,10 @@ export default function PaymentsPage() {
           )}
           
           {selectedQuote && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-900">Orçamento Selecionado:</p>
-              <p className="text-blue-800">#{selectedQuote.booking_reference} - {selectedQuote.customer_name}</p>
-              <p className="text-sm text-blue-600">{selectedQuote.pickup_address} → {selectedQuote.destination_address}</p>
+            <div className="bg-white border border-border rounded-lg p-4">
+              <p className="text-sm font-medium text-text-dark">Orçamento Selecionado:</p>
+              <p className="text-text-dark">#{selectedQuote.booking_reference} - {selectedQuote.customer_name}</p>
+              <p className="text-sm text-text-gray">{selectedQuote.pickup_address} → {selectedQuote.destination_address}</p>
             </div>
           )}
         </div>
@@ -210,12 +287,9 @@ export default function PaymentsPage() {
                 onChange={(e) => setPaymentType(e.target.value)}
                 className="mr-3"
               />
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">💰</span>
-                <div>
-                  <div className="font-medium text-text-dark">Pagamento total agora</div>
-                  <div className="text-sm text-text-gray">R$ {orderSummary.totalAmount.toFixed(2)} à vista</div>
-                </div>
+              <div>
+                <div className="font-medium text-text-dark">Pagamento total agora</div>
+                <div className="text-sm text-text-gray">R$ {orderSummary.totalAmount.toFixed(2)} à vista</div>
               </div>
             </label>
             
@@ -228,116 +302,143 @@ export default function PaymentsPage() {
                 onChange={(e) => setPaymentType(e.target.value)}
                 className="mr-3"
               />
-              <div className="flex items-center">
-                <span className="text-2xl mr-3">💳</span>
-                <div>
-                  <div className="font-medium text-text-dark">Pagamento parcial</div>
-                  <div className="text-sm text-text-gray">50% agora + 50% no dia do serviço</div>
-                </div>
+              <div>
+                <div className="font-medium text-text-dark">Pagamento parcial</div>
+                <div className="text-sm text-text-gray">{firstInstallmentPercentage}% agora + {100 - firstInstallmentPercentage}% no dia do serviço</div>
               </div>
             </label>
+            
+            {paymentType === "partial" && (
+               <div className="ml-6 p-4 bg-white rounded-lg border border-border">
+                 <div className="space-y-4">
+                   <div>
+                     <label className="block text-sm font-medium text-text-dark mb-2">
+                       Percentual da primeira parcela: {firstInstallmentPercentage}%
+                     </label>
+                     <div className="flex items-center space-x-4">
+                       <input
+                         type="range"
+                         min="10"
+                         max="90"
+                         step="5"
+                         value={firstInstallmentPercentage}
+                         onChange={(e) => setFirstInstallmentPercentage(Number(e.target.value))}
+                         className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                       />
+                       <input
+                         type="number"
+                         min="10"
+                         max="90"
+                         step="5"
+                         value={firstInstallmentPercentage}
+                         onChange={(e) => setFirstInstallmentPercentage(Number(e.target.value))}
+                         className="w-16 px-2 py-1 border border-border rounded text-center text-sm"
+                       />
+                       <span className="text-sm text-text-gray">%</span>
+                     </div>
+                   </div>
+                   
+                   <div className="grid grid-cols-2 gap-4 text-sm">
+                     <div className="bg-white p-3 rounded border border-border">
+                       <div className="font-medium text-secondary">1ª Parcela ({new Date().toLocaleDateString('pt-BR')})</div>
+                       <div className="text-lg font-semibold text-text-dark">
+                         R$ {partialPaymentDetails?.firstInstallment.toFixed(2)}
+                       </div>
+                       <div className="text-xs text-text-gray">{firstInstallmentPercentage}% do total</div>
+                     </div>
+                     <div className="bg-white p-3 rounded border border-border">
+                       <div className="font-medium text-secondary">2ª Parcela ({new Date(selectedQuote.pickup_date).toLocaleDateString('pt-BR')})</div>
+                       <div className="text-lg font-semibold text-text-dark">
+                         R$ {partialPaymentDetails?.secondInstallment.toFixed(2)}
+                       </div>
+                       <div className="text-xs text-text-gray">{100 - firstInstallmentPercentage}% do total</div>
+                     </div>
+                   </div>
+                 </div>
+               </div>
+             )}
           </div>
 
-          {/* Detalhamento do Pagamento Parcial */}
-          {paymentType === "partial" && partialPaymentDetails && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-              <h3 className="font-medium text-text-dark mb-3">Detalhamento do Pagamento Parcial</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-gray">1ª Parcela (Agora):</span>
-                  <span className="font-bold text-green-600">R$ {partialPaymentDetails.firstInstallment.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-text-gray">2ª Parcela ({new Date(partialPaymentDetails.secondPaymentDate).toLocaleDateString('pt-BR')}):</span>
-                  <span className="font-medium text-text-dark">R$ {partialPaymentDetails.secondInstallment.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
         )}
       </div>
 
-      {/* Formulário de Pagamento */}
+      {/* Geração de Link de Pagamento */}
       {selectedQuote && (
       <div className="bg-white rounded-lg border border-border p-6">
-        <h2 className="text-xl font-semibold text-text-dark mb-4 flex items-center">
-          <CreditCard className="h-5 w-5 mr-2 text-secondary" />
-          Dados do Cartão
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-text-dark flex items-center">
+            <CreditCard className="h-5 w-5 mr-2 text-secondary" />
+            Link de Pagamento Stripe
+          </h2>
+          <div className="flex items-center text-sm text-gray-600">
+            <Shield className="h-4 w-4 mr-1 text-green-600" />
+            <span>Protegido por Stripe</span>
+          </div>
+        </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-text-dark mb-2">Número do Cartão</label>
-            <input
-              type="text"
-              placeholder="1234 5678 9012 3456"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
-            />
+        <div className="bg-white border border-border rounded-lg p-4 mb-4">
+          <div className="flex items-center text-sm text-text-gray mb-2">
+            <Lock className="h-4 w-4 mr-2 text-green-600" />
+            <span>Link de pagamento seguro gerado pelo Stripe</span>
           </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">Data de Validade</label>
-            <input
-              type="text"
-              placeholder="MM/AA"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-text-dark mb-2">CVV</label>
-            <input
-              type="text"
-              placeholder="123"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
-            />
-          </div>
-          
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium text-text-dark mb-2">Nome no Cartão</label>
-            <input
-              type="text"
-              placeholder="João Silva"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
-            />
+          <p className="text-xs text-text-gray">O cliente receberá um link seguro para realizar o pagamento em uma página hospedada pelo Stripe</p>
+        </div>
+        
+        {/* Informações do Link */}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-dark mb-2">Email do Cliente</label>
+              <input
+                type="email"
+                placeholder="cliente@email.com"
+                defaultValue={selectedQuote?.customer_email || ''}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-dark mb-2">Valor do Pagamento</label>
+              <input
+                type="text"
+                value={`R$ ${(paymentType === "partial" ? partialPaymentDetails?.firstInstallment : orderSummary?.totalAmount)?.toFixed(2) || '0.00'}`}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600"
+              />
+            </div>
           </div>
           
           {paymentType === "partial" && (
-            <div className="md:col-span-2">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={saveCard}
-                  onChange={(e) => setSaveCard(e.target.checked)}
-                  className="mr-2"
-                />
-                <span className="text-sm text-text-gray">Salvar cartão para a segunda parcela</span>
-              </label>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="flex items-center text-sm text-yellow-800">
+                <AlertCircle className="h-4 w-4 mr-2" />
+                <span>Pagamento parcial: Será gerado um segundo link para a segunda parcela na data da reserva ({new Date(selectedQuote.pickup_date).toLocaleDateString('pt-BR')})</span>
+              </div>
             </div>
           )}
         </div>
-      </div>
-      )}
+        </div>
+        )}
 
       {/* Botão de Pagamento */}
       {selectedQuote && (
         <div className="text-center">
           {!showVoucher ? (
             <button
-              onClick={handlePayment}
-              disabled={isProcessing}
+              onClick={generatePaymentLink}
+              disabled={isProcessing || stripeLoading}
               className="bg-secondary hover:bg-secondary/90 text-white px-8 py-3 rounded-lg font-medium text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center mx-auto"
             >
-              {isProcessing ? (
+              {isProcessing || stripeLoading ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Processando...
+                  {stripeLoading ? 'Conectando ao Stripe...' : 'Processando pagamento...'}
                 </>
               ) : (
                 <>
                   <CreditCard className="h-5 w-5 mr-2" />
-                  Pagar {paymentType === "partial" ? `R$ ${partialPaymentDetails?.firstInstallment.toFixed(2)}` : `R$ ${orderSummary?.totalAmount.toFixed(2)}`}
+                  Gerar Link de Pagamento {paymentType === "partial" ? `R$ ${partialPaymentDetails?.firstInstallment.toFixed(2)}` : `R$ ${orderSummary?.totalAmount.toFixed(2)}`}
                 </>
               )}
             </button>
@@ -345,14 +446,83 @@ export default function PaymentsPage() {
         </div>
       )}
 
+
+
       {/* Feedback de Status */}
+      {paymentStatus === "link_generated" && generatedLink && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+          <div className="flex items-center justify-center text-green-800 mb-4">
+            <CheckCircle className="h-5 w-5 mr-2" />
+            <span className="font-medium">Link de pagamento gerado com sucesso!</span>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-green-800 mb-2">Link de Pagamento:</label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="text"
+                  value={generatedLink}
+                  readOnly
+                  className="flex-1 px-3 py-2 border border-green-300 rounded-md bg-white text-sm"
+                />
+                <button
+                  onClick={() => navigator.clipboard.writeText(generatedLink)}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copiar
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  const subject = encodeURIComponent(`Link de Pagamento - ${orderSummary?.serviceName}`);
+                  const body = encodeURIComponent(`Olá ${orderSummary?.customerName},\n\nSegue o link para realizar o pagamento do seu serviço:\n\n${generatedLink}\n\nValor: R$ ${(paymentType === "partial" ? partialPaymentDetails?.firstInstallment : orderSummary?.totalAmount)?.toFixed(2)}\n\nAtenciosamente,\nEquipe Transfer`);
+                  window.open(`mailto:${selectedQuote?.customer_email}?subject=${subject}&body=${body}`);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Enviar por Email
+              </button>
+              
+              <button
+                onClick={() => {
+                  const message = encodeURIComponent(`Olá! Segue o link para pagamento do seu serviço: ${generatedLink}`);
+                  window.open(`https://wa.me/?text=${message}`);
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Enviar por WhatsApp
+              </button>
+              
+              <button
+                onClick={() => {
+                  setPaymentStatus("");
+                  setGeneratedLink("");
+                  setShowVoucher(true);
+                }}
+                className="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-md text-sm flex items-center"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Gerar Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {paymentStatus === "success" && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
           <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-green-800 mb-2">Pagamento Realizado com Sucesso!</h3>
           <p className="text-green-700 mb-4">
             {paymentType === "partial" 
-              ? `Primeira parcela de R$ ${partialPaymentDetails?.firstInstallment.toFixed(2)} processada. A segunda parcela será cobrada em ${new Date(partialPaymentDetails?.secondPaymentDate || '').toLocaleDateString('pt-BR')}.`
+              ? `Primeira parcela de R$ ${partialPaymentDetails?.firstInstallment.toFixed(2)} processada. A segunda parcela será cobrada em ${new Date(selectedQuote.pickup_date).toLocaleDateString('pt-BR')}.`
               : `Pagamento de R$ ${orderSummary?.totalAmount.toFixed(2)} processado com sucesso.`
             }
           </p>
@@ -363,7 +533,7 @@ export default function PaymentsPage() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <AlertCircle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-red-800 mb-2">Erro no Pagamento</h3>
-          <p className="text-red-700 mb-4">Houve um problema ao processar seu pagamento. Tente novamente.</p>
+          <p className="text-red-700 mb-4">Houve um problema ao gerar link de pagamento. Tente novamente.</p>
           <button
             onClick={() => setPaymentStatus("")}
             className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
@@ -408,6 +578,8 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+
     </div>
   )
 }
