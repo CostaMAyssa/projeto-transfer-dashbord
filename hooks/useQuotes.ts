@@ -32,6 +32,7 @@ export function useQuotes() {
           vehicle_categories(id, name, capacity, base_price)
         `)
         .order('created_at', { ascending: false })
+        .limit(1000) // Aumentar limite para garantir que todos os orçamentos sejam carregados
 
       if (error) {
         console.error('Erro do Supabase ao buscar orçamentos:', error)

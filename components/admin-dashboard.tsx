@@ -123,6 +123,32 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
               </li>
               <li>
                 <Link
+                  href="/admin/quotes"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/quotes")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <FileText className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Quotes</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/payments"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/payments")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Payments</span>
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/admin/vehicles"
                   className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
                     pathname.includes("/admin/vehicles")
@@ -149,19 +175,6 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
               </li>
               <li>
                 <Link
-                  href="/admin/quotes"
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
-                    pathname.includes("/admin/quotes")
-                      ? "text-white bg-secondary"
-                      : "text-gray-400 hover:text-white hover:bg-background-dark"
-                  }`}
-                >
-                  <FileText className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Quotes</span>
-                </Link>
-              </li>
-              <li>
-                <Link
                   href="/admin/pricing"
                   className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
                     pathname.includes("/admin/pricing")
@@ -171,19 +184,6 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
                 >
                   <DollarSign className="h-5 w-5" />
                   <span className="text-2xs mt-1">Pricing</span>
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/admin/payments"
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
-                    pathname.includes("/admin/payments")
-                      ? "text-white bg-secondary"
-                      : "text-gray-400 hover:text-white hover:bg-background-dark"
-                  }`}
-                >
-                  <CreditCard className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Payments</span>
                 </Link>
               </li>
               <li>
