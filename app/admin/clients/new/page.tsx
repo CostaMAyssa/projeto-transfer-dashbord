@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ArrowLeft, Save, User, Building } from "lucide-react"
+import { createClient } from "@/hooks/useClients"
 
 export default function NewClientPage() {
   const router = useRouter()
@@ -34,11 +35,29 @@ export default function NewClientPage() {
     
     try {
       console.log('Dados do cliente:', formData)
-      // Aqui seria a integração com Supabase
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      // Mapear os campos do formulário para a estrutura da tabela clients
+      const clientData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone || undefined,
+        company: formData.company || undefined,
+        role: formData.position || undefined, // position -> role na tabela
+        address: formData.address || undefined,
+        tags: formData.tags || undefined,
+        billing_address: formData.billing_address || undefined,
+        notes: formData.notes || undefined,
+        status: formData.status || 'Ativo'
+      }
+      
+      // Criar cliente usando o hook
+      const newClient = await createClient(clientData)
+      
+      console.log('Cliente criado com sucesso:', newClient)
       router.push('/admin/clients')
     } catch (error) {
       console.error('Erro ao criar cliente:', error)
+      alert('Erro ao salvar cliente. Verifique os dados e tente novamente.')
     } finally {
       setLoading(false)
     }

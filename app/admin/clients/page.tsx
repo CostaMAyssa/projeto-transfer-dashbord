@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Plus, Search, Eye, Edit, Trash2 } from "lucide-react"
+import { useClients } from "@/hooks/useClients"
+import ClientHistoryPopup from "@/components/ClientHistoryPopup"
 
 interface Client {
   id: string
@@ -16,37 +18,29 @@ interface Client {
 }
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([])
-  const [loading, setLoading] = useState(true)
+  const { clients: rawClients, isLoading, isError } = useClients()
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [isPopupOpen, setIsPopupOpen] = useState(false)
 
-  useEffect(() => {
-    // Mock data for now - will be replaced with Supabase integration
-    setClients([
-      {
-        id: '1',
-        full_name: 'João Silva',
-        email: 'joao@email.com',
-        phone: '(11) 99999-9999',
-        company: 'Empresa ABC',
-        status: 'active',
-        last_interaction: '2024-01-15',
-        created_at: '2024-01-01'
-      },
-      {
-        id: '2',
-        full_name: 'Maria Santos',
-        email: 'maria@email.com',
-        phone: '(11) 88888-8888',
-        company: 'Tech Corp',
-        status: 'lead',
-        last_interaction: '2024-01-10',
-        created_at: '2024-01-05'
-      }
-    ])
-    setLoading(false)
-  }, [])
+  const mapStatus = (status: string): 'active' | 'inactive' | 'lead' => {
+    if (status === 'Ativo') return 'active'
+    if (status === 'Inativo') return 'inactive'
+    return 'lead'
+  }
+
+  // Mapear os dados para o formato esperado pelo componente
+  const clients = rawClients.map(client => ({
+    id: client.id.toString(),
+    full_name: client.full_name,
+    email: client.email,
+    phone: client.phone || '',
+    company: client.company || '',
+    status: mapStatus(client.status || 'lead'),
+    last_interaction: client.last_interaction || client.updated_at || client.created_at,
+    created_at: client.created_at
+  }))
 
   const filteredClients = clients.filter(client => {
     const matchesSearch = client.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -75,7 +69,7 @@ export default function ClientsPage() {
     return new Date(dateString).toLocaleDateString('pt-BR')
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin"></div>
@@ -189,9 +183,15 @@ export default function ClientsPage() {
                   <tr key={client.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <button
+                          onClick={() => {
+                            setSelectedClient(client);
+                            setIsPopupOpen(true);
+                          }}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors cursor-pointer underline"
+                        >
                           {client.full_name}
-                        </div>
+                        </button>
                         <div className="text-sm text-gray-500">
                           Cliente desde {formatDate(client.created_at)}
                         </div>
@@ -254,6 +254,24 @@ export default function ClientsPage() {
         <div className="mt-4 text-sm text-gray-600">
           Mostrando {filteredClients.length} de {clients.length} clientes
         </div>
+      )}
+
+      {/* Client History Popup */}
+      {selectedClient && (
+        <ClientHistoryPopup
+          client={{
+            id: parseInt(selectedClient.id),
+            full_name: selectedClient.full_name,
+            email: selectedClient.email,
+            phone: selectedClient.phone,
+            last_interaction: selectedClient.last_interaction
+          }}
+          isOpen={isPopupOpen}
+          onClose={() => {
+            setIsPopupOpen(false);
+            setSelectedClient(null);
+          }}
+        />
       )}
     </div>
   )

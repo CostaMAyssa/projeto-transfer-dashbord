@@ -73,19 +73,19 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative top-0 left-0 z-50 h-full w-20 md:w-20 bg-primary flex-shrink-0 flex flex-col items-center py-6 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:rounded-tr-xl md:rounded-br-xl ${
+        className={`fixed md:relative top-0 left-0 z-50 h-full w-20 md:w-20 bg-primary flex-shrink-0 flex flex-col items-center py-4 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:rounded-tr-xl md:rounded-br-xl ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full items-center">
           {/* Logo */}
-          <div className="mb-8">
-            <div className="relative h-10 w-10 rounded-full bg-white flex items-center justify-center overflow-hidden">
+          <div className="mb-4">
+            <div className="relative h-8 w-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
               <Image
                 src="/img/logo.png"
                 alt="AZ Transfer Logo"
                 fill
-                className="object-contain p-2"
+                className="object-contain p-1"
               />
             </div>
             <button className="absolute top-4 right-4 md:hidden" onClick={() => setSidebarOpen(false)}>
@@ -95,18 +95,18 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
 
           {/* Navigation */}
           <nav className="flex-1 w-full">
-            <ul className="space-y-6 flex flex-col items-center">
+            <ul className="space-y-2 flex flex-col items-center">
               <li>
                 <Link
                   href="/admin"
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                  className={`flex flex-col items-center justify-center w-10 h-10 rounded transition-colors ${
                     pathname === "/admin"
                       ? "text-white bg-secondary"
                       : "text-gray-400 hover:text-white hover:bg-background-dark"
                   }`}
                 >
-                  <Home className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Home</span>
+                  <Home className="h-4 w-4" />
+                  <span className="text-[8px] mt-0.5">Home</span>
                 </Link>
               </li>
               <li>
