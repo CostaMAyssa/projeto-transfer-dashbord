@@ -21,6 +21,7 @@ import {
   User as UserIcon,
   CreditCard,
   FileText,
+  Kanban,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { logout } from "@/hooks/useAdmin"
@@ -110,19 +111,6 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
               </li>
               <li>
                 <Link
-                  href="/admin/bookings"
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
-                    pathname.includes("/admin/bookings")
-                      ? "text-white bg-secondary"
-                      : "text-gray-400 hover:text-white hover:bg-background-dark"
-                  }`}
-                >
-                  <Calendar className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Trips</span>
-                </Link>
-              </li>
-              <li>
-                <Link
                   href="/admin/quotes"
                   className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
                     pathname.includes("/admin/quotes")
@@ -132,6 +120,45 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
                 >
                   <FileText className="h-5 w-5" />
                   <span className="text-2xs mt-1">Quotes</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/bookings"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/bookings")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <Calendar className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Reservations</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/clients"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/clients")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <UserIcon className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Contacts</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/crm"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/crm")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <Kanban className="h-5 w-5" />
+                  <span className="text-2xs mt-1">CRM</span>
                 </Link>
               </li>
               <li>
@@ -250,11 +277,11 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
                       <>
                         <span className="mx-2 text-gray-400">/</span>
                         {pathname === "/admin/bookings" ? (
-                          <h1 className="font-medium">Trips</h1>
+                          <h1 className="font-medium">Reservations</h1>
                         ) : (
                           <>
                             <Link href="/admin/bookings" className="text-gray-500 hover:text-gray-700">
-                              Trips
+                              Reservations
                             </Link>
                             <span className="mx-2 text-gray-400">/</span>
                             <h1 className="font-medium">Details</h1>
@@ -272,6 +299,30 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
                       <>
                         <span className="mx-2 text-gray-400">/</span>
                         <h1 className="font-medium">Drivers</h1>
+                      </>
+                    )}
+                    {pathname.includes("/admin/clients") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        {pathname === "/admin/clients" ? (
+                          <h1 className="font-medium">Contacts</h1>
+                        ) : (
+                          <>
+                            <Link href="/admin/clients" className="text-gray-500 hover:text-gray-700">
+                              Contacts
+                            </Link>
+                            <span className="mx-2 text-gray-400">/</span>
+                            <h1 className="font-medium">
+                              {pathname.includes("/admin/clients/new") ? "New Contact" : "Details"}
+                            </h1>
+                          </>
+                        )}
+                      </>
+                    )}
+                    {pathname.includes("/admin/crm") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        <h1 className="font-medium">CRM</h1>
                       </>
                     )}
                     {pathname.includes("/admin/pricing") && (

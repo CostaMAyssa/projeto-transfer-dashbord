@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useQuotes } from "@/hooks/useQuotes"
+import { supabase } from "@/lib/supabase"
 import { 
   CreditCard, 
   DollarSign,
@@ -11,13 +12,10 @@ import {
   AlertCircle,
   Loader2,
   QrCode,
-  Mail,
   Search,
   Shield,
   Lock,
-  Copy,
-  MessageCircle,
-  FileText
+  Copy
 } from "lucide-react"
 
 export default function PaymentsPage() {
@@ -101,49 +99,87 @@ export default function PaymentsPage() {
   } : null
 
   const generatePaymentLink = async () => {
-    if (!orderSummary || !partialPaymentDetails) return
+    if (!orderSummary || !partialPaymentDetails) {
+      console.log('❌ generatePaymentLink: Missing orderSummary or partialPaymentDetails')
+      return
+    }
+    
+    console.log('🚀 generatePaymentLink: Starting payment generation')
+    console.log('📊 Payment data:', {
+      selectedQuote: selectedQuote?.id,
+      paymentType,
+      firstInstallmentPercentage,
+      orderSummary,
+      partialPaymentDetails
+    })
     
     setIsProcessing(true)
     setStripeLoading(true)
     setPaymentStatus("")
     
     try {
-      // Dados para gerar o link de pagamento no Stripe
-      const paymentData = {
-        amount: paymentType === "partial" ? partialPaymentDetails.firstInstallment : orderSummary.totalAmount,
-        currency: 'brl',
-        quote_id: selectedQuote.id,
-        payment_type: paymentType,
-        customer_email: selectedQuote.customer_email || '',
-        customer_name: orderSummary.customerName,
-        service_description: orderSummary.serviceName,
-        save_card: saveCard && paymentType === "partial"
+      console.log('🔐 Getting Supabase session...')
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('✅ Session obtained:', session ? 'Valid' : 'Invalid')
+      
+      const requestBody = {
+        quoteId: selectedQuote.id,
+        paymentType,
+        firstInstallmentPercentage,
+        customerInfo: {
+          name: selectedQuote.customer_name || 'Cliente',
+          email: selectedQuote.customer_email || 'cliente@email.com',
+          phone: selectedQuote.customer_phone || '+351000000000',
+        },
       }
       
-      console.log('Generating Stripe payment link with data:', paymentData)
+      console.log('📤 Request body:', requestBody)
       
-      // Aqui será implementada a chamada para gerar o link no Stripe
-      // const response = await fetch('/api/stripe/create-payment-link', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(paymentData)
-      // })
-      // const { payment_link_url } = await response.json()
+      console.log('🌐 Making API request to /api/supabase/functions/payments')
+      const response = await fetch('/api/supabase/functions/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify(requestBody),
+      })
+
+      console.log('📥 Response status:', response.status)
+      console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()))
       
-      // Simular geração do link por enquanto
-      setTimeout(() => {
-        const mockPaymentLink = `https://checkout.stripe.com/pay/cs_test_${Math.random().toString(36).substr(2, 9)}`
-        setIsProcessing(false)
-        setStripeLoading(false)
-        setPaymentStatus("link_generated")
-        setGeneratedLink(mockPaymentLink)
-      }, 2000)
-      
+      if (!response.ok) {
+        console.error('❌ Response not OK:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('❌ Error response body:', errorText)
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      console.log('📋 API Response:', result)
+
+      if (result.success) {
+         console.log('✅ Payment link generated successfully')
+         setPaymentStatus("link_generated")
+         if (paymentType === 'full') {
+           console.log('💳 Full payment - using clientSecret:', result.clientSecret)
+           setGeneratedLink(`https://checkout.stripe.com/pay/${result.clientSecret}`)
+         } else {
+           console.log('📊 Partial payment - using firstInstallment:', result.paymentLinks?.firstInstallment)
+           setGeneratedLink(result.paymentLinks?.firstInstallment || '')
+         }
+       } else {
+         console.error('❌ API returned error:', result.error)
+         throw new Error(result.error || 'Erro desconhecido')
+       }
     } catch (error) {
-      console.error('Error generating payment link:', error)
+      console.error('💥 Error in generatePaymentLink:', error)
+      console.error('💥 Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+      setPaymentStatus("error")
+    } finally {
+      console.log('🏁 generatePaymentLink: Finished')
       setIsProcessing(false)
       setStripeLoading(false)
-      setPaymentStatus("error")
     }
   }
 
@@ -476,42 +512,7 @@ export default function PaymentsPage() {
               </div>
             </div>
             
-            <div className="flex space-x-3">
-              <button
-                onClick={() => {
-                  const subject = encodeURIComponent(`Link de Pagamento - ${orderSummary?.serviceName}`);
-                  const body = encodeURIComponent(`Olá ${orderSummary?.customerName},\n\nSegue o link para realizar o pagamento do seu serviço:\n\n${generatedLink}\n\nValor: R$ ${(paymentType === "partial" ? partialPaymentDetails?.firstInstallment : orderSummary?.totalAmount)?.toFixed(2)}\n\nAtenciosamente,\nEquipe Transfer`);
-                  window.open(`mailto:${selectedQuote?.customer_email}?subject=${subject}&body=${body}`);
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                Enviar por Email
-              </button>
-              
-              <button
-                onClick={() => {
-                  const message = encodeURIComponent(`Olá! Segue o link para pagamento do seu serviço: ${generatedLink}`);
-                  window.open(`https://wa.me/?text=${message}`);
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Enviar por WhatsApp
-              </button>
-              
-              <button
-                onClick={() => {
-                  setPaymentStatus("");
-                  setGeneratedLink("");
-                  setShowVoucher(true);
-                }}
-                className="bg-secondary hover:bg-secondary/90 text-white px-4 py-2 rounded-md text-sm flex items-center"
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                Gerar Voucher
-              </button>
-            </div>
+
           </div>
         </div>
       )}
@@ -568,13 +569,7 @@ export default function PaymentsPage() {
               Baixar PDF
             </button>
             
-            <button
-              onClick={sendVoucherEmail}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center"
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Enviar por Email
-            </button>
+
           </div>
         </div>
       )}
