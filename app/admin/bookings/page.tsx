@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User } from "lucide-react"
-import { useBookings, updateBookingStatus } from "@/hooks/useBookings"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard } from "lucide-react"
+import { useReservations, updateReservationStatus, Reservation } from "@/hooks/useReservations"
 import { mutate } from "swr"
+import ReservationDetailsPopup from "@/components/ReservationDetailsPopup"
 
-export default function BookingsPage() {
-  const { data: bookings, error, isLoading } = useBookings()
-  const [statusFilter, setStatusFilter] = useState("All")
+export default function ReservationsPage() {
+  const { data: reservations, error, isLoading } = useReservations()
   const [currentPage, setCurrentPage] = useState(1)
+  const [statusFilter, setStatusFilter] = useState('All')
   const [itemsPerPage] = useState(5)
   const [activeTab, setActiveTab] = useState("All")
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [isPopupOpen, setIsPopupOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -30,7 +33,7 @@ export default function BookingsPage() {
         <div className="text-center">
           <p className="text-red-600 mb-4">Erro ao carregar reservas</p>
           <button 
-            onClick={() => mutate('bookings')}
+            onClick={() => mutate('reservations')}
             className="btn-primary bg-secondary"
           >
             Tentar novamente
@@ -40,98 +43,116 @@ export default function BookingsPage() {
     )
   }
 
-  // Filter bookings based on status only
-  const filteredBookings = bookings?.filter(
-    (booking) =>
-      (statusFilter === "All" || booking.status === statusFilter.toLowerCase()),
+  // Filter reservations based on status only
+  const filteredReservations = reservations?.filter(
+    (reservation) =>
+      (statusFilter === "All" || reservation.status === statusFilter.toLowerCase()),
   ) || []
 
   // Pagination
   const indexOfLastItem = currentPage * itemsPerPage
   const indexOfFirstItem = indexOfLastItem - itemsPerPage
-  const currentBookings = filteredBookings.slice(indexOfFirstItem, indexOfLastItem)
-  const totalPages = Math.ceil(filteredBookings.length / itemsPerPage)
+  const currentReservations = filteredReservations.slice(indexOfFirstItem, indexOfLastItem)
+  const totalPages = Math.ceil(filteredReservations.length / itemsPerPage)
 
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber)
   }
 
-  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+  const handleStatusChange = async (reservationId: string, newStatus: string) => {
     try {
-      await updateBookingStatus(bookingId, newStatus as any)
-      mutate('bookings')
+      await updateReservationStatus(reservationId, newStatus as any)
+      mutate('reservations')
     } catch (error) {
       console.error('Erro ao atualizar status:', error)
       alert('Erro ao atualizar status da reserva')
     }
   }
 
+  // Função para formatar data
+  const formatDate = (date: string) => {
+    return new Date(date).toLocaleDateString('pt-BR')
+  }
+
+  // Função para formatar hora
+  const formatTime = (time: string) => {
+    return time.slice(0, 5) // Remove segundos
+  }
+
+  // Função para formatar moeda
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(amount)
+  }
+
+  // Função para obter cor do status
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return "bg-yellow-100 text-yellow-800"
-      case 'scheduled':
-        return "bg-blue-100 text-blue-800"
+        return 'bg-yellow-100 text-yellow-800'
+      case 'confirmed':
+        return 'bg-blue-100 text-blue-800'
       case 'in_progress':
-        return "bg-purple-100 text-purple-800"
+        return 'bg-purple-100 text-purple-800'
       case 'completed':
-        return "bg-green-100 text-green-800"
+        return 'bg-green-100 text-green-800'
       case 'cancelled':
-        return "bg-red-100 text-red-800"
+        return 'bg-red-100 text-red-800'
       default:
-        return "bg-gray-100 text-gray-800"
+        return 'bg-gray-100 text-gray-800'
     }
   }
 
+  // Função para obter texto do status
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-        return "Pendente"
-      case 'scheduled':
-        return "Agendado"
+        return 'Pendente'
+      case 'confirmed':
+        return 'Confirmada'
       case 'in_progress':
-        return "Em Andamento"
+        return 'Em Andamento'
       case 'completed':
-        return "Concluído"
+        return 'Concluída'
       case 'cancelled':
-        return "Cancelado"
+        return 'Cancelada'
       default:
         return status
     }
   }
 
-  const getPaymentStatusColor = (status: string) => {
+  // Função para obter cor do status de pagamento
+  const getPaymentStatusColor = (status?: string) => {
     switch (status) {
       case 'paid':
-        return "bg-green-100 text-green-800"
+        return 'bg-green-100 text-green-800'
+      case 'partial':
+        return 'bg-yellow-100 text-yellow-800'
       case 'unpaid':
-        return "bg-red-100 text-red-800"
+        return 'bg-red-100 text-red-800'
       case 'refunded':
-        return "bg-gray-100 text-gray-800"
+        return 'bg-gray-100 text-gray-800'
       default:
-        return "bg-gray-100 text-gray-800"
+        return 'bg-gray-100 text-gray-600'
     }
   }
 
-  const getPaymentStatusText = (status: string) => {
+  // Função para obter texto do status de pagamento
+  const getPaymentStatusText = (status?: string) => {
     switch (status) {
       case 'paid':
-        return "Pago"
+        return 'Pago'
+      case 'partial':
+        return 'Parcial'
       case 'unpaid':
-        return "Não Pago"
+        return 'Não Pago'
       case 'refunded':
-        return "Reembolsado"
+        return 'Reembolsado'
       default:
-        return status
+        return 'N/A'
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
-  }
-
-  const formatTime = (timeString: string) => {
-    return timeString.slice(0, 5) // Remove seconds
   }
 
   return (
@@ -195,16 +216,16 @@ export default function BookingsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentBookings.map((booking) => (
-                <tr key={booking.id} className="hover:bg-gray-50">
+              {currentReservations.map((reservation) => (
+                <tr key={reservation.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          #{booking.id.slice(0, 8)}
+                          {reservation.booking_reference || `#${reservation.id.slice(0, 8)}`}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {booking.passengers} passageiro{booking.passengers > 1 ? 's' : ''}
+                          Cliente: {reservation.customer_name}
                         </div>
                       </div>
                     </div>
@@ -213,8 +234,8 @@ export default function BookingsPage() {
                     <div className="flex items-center text-sm">
                       <MapPin className="h-4 w-4 text-gray-400 mr-1" />
                       <div>
-                        <div className="text-gray-900">{booking.pickup_location}</div>
-                        <div className="text-gray-500">→ {booking.dropoff_location}</div>
+                        <div className="text-gray-900">{reservation.pickup_address}</div>
+                        <div className="text-gray-500">→ {reservation.destination_address}</div>
                       </div>
                     </div>
                   </td>
@@ -222,50 +243,53 @@ export default function BookingsPage() {
                     <div className="flex items-center text-sm">
                       <Calendar className="h-4 w-4 text-gray-400 mr-1" />
                       <div>
-                        <div className="text-gray-900">{formatDate(booking.pickup_date)}</div>
+                        <div className="text-gray-900">{formatDate(reservation.pickup_date)}</div>
                         <div className="text-gray-500 flex items-center">
                           <Clock className="h-3 w-3 mr-1" />
-                          {formatTime(booking.pickup_time)}
+                          {formatTime(reservation.pickup_time)}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {booking.vehicles?.name || 'Não atribuído'}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {booking.vehicles?.type}
+                    <div className="flex items-center text-sm text-gray-500">
+                      <Car className="h-4 w-4 mr-1" />
+                      <span>A definir</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
-                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(booking.status)}`}
-                      value={booking.status}
-                      onChange={(e) => handleStatusChange(booking.id, e.target.value)}
+                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(reservation.status)}`}
+                      value={reservation.status}
+                      onChange={(e) => handleStatusChange(reservation.id, e.target.value)}
                     >
                       <option value="pending">Pendente</option>
-                      <option value="scheduled">Agendado</option>
+                      <option value="confirmed">Confirmada</option>
                       <option value="in_progress">Em Andamento</option>
-                      <option value="completed">Concluído</option>
-                      <option value="cancelled">Cancelado</option>
+                      <option value="completed">Concluída</option>
+                      <option value="cancelled">Cancelada</option>
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPaymentStatusColor(booking.payment_status)}`}>
-                      {getPaymentStatusText(booking.payment_status)}
-                    </span>
+                    <div className="flex items-center text-sm text-gray-500">
+                      <CreditCard className="h-4 w-4 mr-1" />
+                      <span>A definir</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    £{booking.total_amount.toFixed(2)}
+                    {formatCurrency(reservation.total_amount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <Link href={`/admin/bookings/${booking.id}`}>
-                      <button className="text-[#E95440] hover:text-[#d63d2a] flex items-center">
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                      </button>
-                    </Link>
+                    <button 
+                      onClick={() => {
+                        setSelectedReservation(reservation)
+                        setIsPopupOpen(true)
+                      }}
+                      className="text-[#E95440] hover:text-[#d63d2a] flex items-center"
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -296,8 +320,8 @@ export default function BookingsPage() {
               <div>
                 <p className="text-sm text-gray-700">
                   Mostrando <span className="font-medium">{indexOfFirstItem + 1}</span> a{" "}
-                  <span className="font-medium">{Math.min(indexOfLastItem, filteredBookings.length)}</span> de{" "}
-                  <span className="font-medium">{filteredBookings.length}</span> reservas
+                  <span className="font-medium">{Math.min(indexOfLastItem, filteredReservations.length)}</span> de{" "}
+                  <span className="font-medium">{filteredReservations.length}</span> reservas
                 </p>
               </div>
               <div>
@@ -335,6 +359,18 @@ export default function BookingsPage() {
           </div>
         )}
       </div>
+
+      {/* Popup de Detalhes da Reserva */}
+      {selectedReservation && (
+        <ReservationDetailsPopup
+          reservation={selectedReservation}
+          isOpen={isPopupOpen}
+          onClose={() => {
+            setIsPopupOpen(false)
+            setSelectedReservation(null)
+          }}
+        />
+      )}
     </div>
   )
 }

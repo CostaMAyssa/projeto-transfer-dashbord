@@ -6,10 +6,13 @@ export interface ClientInteraction {
   client_id: number;
   interaction_type: 'quote' | 'reservation' | 'call' | 'email' | 'note';
   reference_id: string | null;
+  reference_display?: string; // Referência formatada para exibição
   status: string | null;
   description: string | null;
   created_at: string;
   created_by: string | null;
+  quotes?: { booking_reference: string } | null;
+  bookings?: { id: string } | null;
 }
 
 export interface CreateClientInteractionData {
@@ -28,7 +31,11 @@ export function useClientInteractions(clientId: number) {
     async () => {
       const { data, error } = await supabase
         .from('client_interactions')
-        .select('*')
+        .select(`
+          *,
+          quotes!left(booking_reference),
+          bookings!left(id)
+        `)
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
@@ -37,7 +44,17 @@ export function useClientInteractions(clientId: number) {
         throw error;
       }
 
-      return data as ClientInteraction[];
+      // Mapear os dados para incluir a referência correta
+      const mappedData = data?.map(interaction => ({
+        ...interaction,
+        reference_display: interaction.interaction_type === 'quote' 
+          ? interaction.quotes?.booking_reference 
+          : interaction.interaction_type === 'reservation'
+          ? `BK-${interaction.bookings?.id?.slice(-6)?.toUpperCase() || 'N/A'}`
+          : interaction.reference_id
+      })) || [];
+
+      return mappedData as ClientInteraction[];
     }
   );
 
@@ -62,7 +79,9 @@ export function useAllClientInteractions() {
             id,
             full_name,
             email
-          )
+          ),
+          quotes!left(booking_reference),
+          bookings!left(id)
         `)
         .order('created_at', { ascending: false });
 
@@ -71,7 +90,17 @@ export function useAllClientInteractions() {
         throw error;
       }
 
-      return data;
+      // Mapear os dados para incluir a referência correta
+      const mappedData = data?.map(interaction => ({
+        ...interaction,
+        reference_display: interaction.interaction_type === 'quote' 
+          ? interaction.quotes?.booking_reference 
+          : interaction.interaction_type === 'reservation'
+          ? `BK-${interaction.bookings?.id?.slice(-6)?.toUpperCase() || 'N/A'}`
+          : interaction.reference_id
+      })) || [];
+
+      return mappedData;
     }
   );
 

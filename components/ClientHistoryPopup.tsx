@@ -317,9 +317,9 @@ export default function ClientHistoryPopup({ client, isOpen, onClose }: ClientHi
                                 {statusLabels[interaction.status as keyof typeof statusLabels] || interaction.status}
                               </span>
                             )}
-                            {interaction.reference_id && (
+                            {interaction.reference_display && (
                               <span className="text-xs text-gray-500">
-                                #{interaction.reference_id.slice(0, 8)}
+                                #{interaction.reference_display}
                               </span>
                             )}
                           </div>
