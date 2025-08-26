@@ -137,6 +137,18 @@ export default function ClientDetailsPage() {
                 </p>
               </div>
             )}
+            {client.role && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Cargo</label>
+                <p className="text-gray-900">{client.role}</p>
+              </div>
+            )}
+            {client.preferred_currency && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Moeda Preferida</label>
+                <p className="text-gray-900">{client.preferred_currency}</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -164,8 +176,63 @@ export default function ClientDetailsPage() {
                 </p>
               </div>
             )}
+            {client.address && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Endereço</label>
+                <p className="text-gray-900">{client.address}</p>
+              </div>
+            )}
+            {client.billing_address && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Endereço de Cobrança</label>
+                <p className="text-gray-900">{client.billing_address}</p>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Additional Information */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações Adicionais</h2>
+          <div className="space-y-4">
+            {client.tags && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">Tags</label>
+                <div className="mt-1">
+                  <div className="flex flex-wrap gap-2">
+                    {client.tags.split(',').map((tag, index) => (
+                      <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        {tag.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {client.stripe_customer_id && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">ID Cliente Stripe</label>
+                <p className="text-gray-900 font-mono text-sm">{client.stripe_customer_id}</p>
+              </div>
+            )}
+            {client.payment_method_id && (
+              <div>
+                <label className="text-sm font-medium text-gray-500">ID Método de Pagamento</label>
+                <p className="text-gray-900 font-mono text-sm">{client.payment_method_id}</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Notes */}
+        {client.notes && (
+          <div className="bg-white rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Observações</h2>
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-gray-700 whitespace-pre-wrap">{client.notes}</p>
+            </div>
+          </div>
+        )}
 
         {/* Timeline Information */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">

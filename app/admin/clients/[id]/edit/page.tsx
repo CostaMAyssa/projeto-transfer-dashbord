@@ -11,6 +11,12 @@ interface FormData {
   email: string
   phone: string
   company: string
+  role: string
+  address: string
+  tags: string
+  billing_address: string
+  notes: string
+  preferred_currency: string
   status: string
 }
 
@@ -24,6 +30,12 @@ export default function EditClientPage() {
     email: '',
     phone: '',
     company: '',
+    role: '',
+    address: '',
+    tags: '',
+    billing_address: '',
+    notes: '',
+    preferred_currency: 'BRL',
     status: 'Lead'
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -39,6 +51,12 @@ export default function EditClientPage() {
           email: foundClient.email,
           phone: foundClient.phone || '',
           company: foundClient.company || '',
+          role: foundClient.role || '',
+          address: foundClient.address || '',
+          tags: foundClient.tags || '',
+          billing_address: foundClient.billing_address || '',
+          notes: foundClient.notes || '',
+          preferred_currency: foundClient.preferred_currency || 'BRL',
           status: foundClient.status || 'Lead'
         })
       }
@@ -209,6 +227,98 @@ export default function EditClientPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
                 placeholder="Digite a empresa (opcional)"
               />
+            </div>
+
+            {/* Cargo */}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-2">
+                Cargo
+              </label>
+              <input
+                type="text"
+                id="role"
+                value={formData.role}
+                onChange={(e) => handleInputChange('role', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                placeholder="Digite o cargo (opcional)"
+              />
+            </div>
+
+            {/* Endereço */}
+            <div>
+              <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                Endereço
+              </label>
+              <textarea
+                id="address"
+                value={formData.address}
+                onChange={(e) => handleInputChange('address', e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                placeholder="Digite o endereço (opcional)"
+              />
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label htmlFor="tags" className="block text-sm font-medium text-gray-700 mb-2">
+                Tags
+              </label>
+              <input
+                type="text"
+                id="tags"
+                value={formData.tags}
+                onChange={(e) => handleInputChange('tags', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                placeholder="Digite as tags separadas por vírgula (opcional)"
+              />
+            </div>
+
+            {/* Endereço de Cobrança */}
+            <div>
+              <label htmlFor="billing_address" className="block text-sm font-medium text-gray-700 mb-2">
+                Endereço de Cobrança
+              </label>
+              <textarea
+                id="billing_address"
+                value={formData.billing_address}
+                onChange={(e) => handleInputChange('billing_address', e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                placeholder="Digite o endereço de cobrança (opcional)"
+              />
+            </div>
+
+            {/* Notas */}
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
+                Notas
+              </label>
+              <textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => handleInputChange('notes', e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+                placeholder="Digite notas adicionais (opcional)"
+              />
+            </div>
+
+            {/* Moeda Preferida */}
+            <div>
+              <label htmlFor="preferred_currency" className="block text-sm font-medium text-gray-700 mb-2">
+                Moeda Preferida
+              </label>
+              <select
+                id="preferred_currency"
+                value={formData.preferred_currency}
+                onChange={(e) => handleInputChange('preferred_currency', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-secondary focus:border-transparent"
+              >
+                <option value="BRL">Real (BRL)</option>
+                <option value="USD">Dólar (USD)</option>
+                <option value="EUR">Euro (EUR)</option>
+              </select>
             </div>
 
             {/* Status */}
