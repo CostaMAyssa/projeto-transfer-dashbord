@@ -130,16 +130,17 @@ serve(async (req: Request) => {
               customer_name: customerInfo.name,
               customer_email: customerInfo.email,
               customer_phone: customerInfo.phone,
-              pickup_location: quote.pickup_location,
-              dropoff_location: quote.dropoff_location,
+              pickup_address: quote.pickup_address || quote.pickup_location,
+              destination_address: quote.destination_address || quote.dropoff_location,
               pickup_date: quote.pickup_date,
               pickup_time: quote.pickup_time,
               total_amount: quote.total_amount,
               status: 'confirmed',
-              payment_status: 'pending',
+              payment_status: 'unpaid',
               payment_links: JSON.stringify({ link: session.url }),
               payment_type: 'single',
-              payment_id: payment?.id
+              payment_id: payment?.id,
+              booking_reference: reservationNumber // Adicionar booking_reference
             })
 
           if (reservationError) {
@@ -268,19 +269,20 @@ serve(async (req: Request) => {
                 customer_name: customerInfo.name,
                 customer_email: customerInfo.email,
                 customer_phone: customerInfo.phone,
-                pickup_location: quote.pickup_location,
-                dropoff_location: quote.dropoff_location,
+                pickup_address: quote.pickup_address || quote.pickup_location,
+                destination_address: quote.destination_address || quote.dropoff_location,
                 pickup_date: quote.pickup_date,
                 pickup_time: quote.pickup_time,
                 total_amount: quote.total_amount,
                 status: 'confirmed',
-                payment_status: 'pending',
+                payment_status: 'partial',
                 payment_links: JSON.stringify({
                   first_installment: firstInstallmentLink.url,
                   second_installment: secondInstallmentLink.url
                 }),
                 payment_type: 'partial',
-                payment_id: payment.id
+                payment_id: payment.id,
+                booking_reference: reservationNumber // Adicionar booking_reference
               })
 
             if (reservationError) {
