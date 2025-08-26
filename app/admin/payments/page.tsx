@@ -29,6 +29,7 @@ export default function PaymentsPage() {
   const [showVoucher, setShowVoucher] = useState(false)
   const [stripeLoading, setStripeLoading] = useState(false)
   const [generatedLink, setGeneratedLink] = useState("")
+  const [paymentLinks, setPaymentLinks] = useState<{firstInstallment?: string, secondInstallment?: string}>({})
   const [firstInstallmentPercentage, setFirstInstallmentPercentage] = useState(50)
 
   // Estilos para o slider
@@ -162,10 +163,11 @@ export default function PaymentsPage() {
          console.log('✅ Payment link generated successfully')
          setPaymentStatus("link_generated")
          if (paymentType === 'full') {
-           console.log('💳 Full payment - using clientSecret:', result.clientSecret)
-           setGeneratedLink(`https://checkout.stripe.com/pay/${result.clientSecret}`)
+           console.log('💳 Full payment - using checkout URL:', result.clientSecret)
+           setGeneratedLink(result.clientSecret)
          } else {
-           console.log('📊 Partial payment - using firstInstallment:', result.paymentLinks?.firstInstallment)
+           console.log('📊 Partial payment - storing both links:', result.paymentLinks)
+           setPaymentLinks(result.paymentLinks || {})
            setGeneratedLink(result.paymentLinks?.firstInstallment || '')
          }
        } else {
@@ -231,6 +233,9 @@ export default function PaymentsPage() {
                     onClick={() => {
                       setSelectedQuote(quote)
                       setSearchTerm('')
+                      setPaymentStatus('')
+                      setGeneratedLink('')
+                      setPaymentLinks({})
                     }}
                     className="p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
                   >
@@ -485,7 +490,7 @@ export default function PaymentsPage() {
 
 
       {/* Feedback de Status */}
-      {paymentStatus === "link_generated" && generatedLink && (
+      {paymentStatus === "link_generated" && (generatedLink || paymentLinks.firstInstallment) && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-6">
           <div className="flex items-center justify-center text-green-800 mb-4">
             <CheckCircle className="h-5 w-5 mr-2" />
@@ -493,26 +498,79 @@ export default function PaymentsPage() {
           </div>
           
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-green-800 mb-2">Link de Pagamento:</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={generatedLink}
-                  readOnly
-                  className="flex-1 px-3 py-2 border border-green-300 rounded-md bg-white text-sm"
-                />
-                <button
-                  onClick={() => navigator.clipboard.writeText(generatedLink)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  Copiar
-                </button>
+            {paymentType === 'full' ? (
+              <div>
+                <label className="block text-sm font-medium text-green-800 mb-2">Link de Pagamento:</label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={generatedLink}
+                    readOnly
+                    className="flex-1 px-3 py-2 border border-green-300 rounded-md bg-white text-sm"
+                  />
+                  <button
+                    onClick={() => navigator.clipboard.writeText(generatedLink)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    Copiar
+                  </button>
+                </div>
               </div>
-            </div>
-            
-
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-blue-800 mb-2">Pagamento Parcial - Dois Links Gerados</h4>
+                  <p className="text-sm text-blue-700">Ambos os links foram criados. Envie o primeiro para pagamento imediato e guarde o segundo para enviar na data da reserva.</p>
+                </div>
+                
+                {paymentLinks.firstInstallment && (
+                  <div>
+                    <label className="block text-sm font-medium text-green-800 mb-2">
+                      1ª Parcela ({firstInstallmentPercentage}%) - Para pagamento imediato:
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={paymentLinks.firstInstallment}
+                        readOnly
+                        className="flex-1 px-3 py-2 border border-green-300 rounded-md bg-white text-sm"
+                      />
+                      <button
+                        onClick={() => navigator.clipboard.writeText(paymentLinks.firstInstallment!)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+                      >
+                        <Copy className="h-4 w-4 mr-1" />
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                )}
+                
+                {paymentLinks.secondInstallment && (
+                  <div>
+                    <label className="block text-sm font-medium text-green-800 mb-2">
+                      2ª Parcela ({100 - firstInstallmentPercentage}%) - Para enviar na data da reserva:
+                    </label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="text"
+                        value={paymentLinks.secondInstallment}
+                        readOnly
+                        className="flex-1 px-3 py-2 border border-green-300 rounded-md bg-white text-sm"
+                      />
+                      <button
+                        onClick={() => navigator.clipboard.writeText(paymentLinks.secondInstallment!)}
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm flex items-center"
+                      >
+                        <Copy className="h-4 w-4 mr-1" />
+                        Copiar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: 'brl',
+            currency: 'usd',
             product_data: {
               name: `1ª Parcela - Orçamento ${quoteId}`,
               description: `Primeira parcela (${firstInstallmentPercentage}%) - Vencimento: ${new Date(firstInstallmentDate).toLocaleDateString('pt-BR')}`
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: 'brl',
+            currency: 'usd',
             product_data: {
               name: `2ª Parcela - Orçamento ${quoteId}`,
               description: `Segunda parcela (${100 - firstInstallmentPercentage}%) - Vencimento: ${new Date(secondInstallmentDate).toLocaleDateString('pt-BR')}`

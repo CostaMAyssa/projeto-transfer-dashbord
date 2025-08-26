@@ -18,7 +18,10 @@ export interface Reservation {
   total_amount: number
   created_at: string
   updated_at: string
-
+  payment_links?: any // JSON field for payment links
+  payment_type?: 'single' | 'partial' // Type of payment
+  payment_id?: string // Reference to payments table
+  payment_status?: string // Payment status
 }
 
 export interface CreateReservationData {

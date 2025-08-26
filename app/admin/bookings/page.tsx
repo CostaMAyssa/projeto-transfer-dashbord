@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard } from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check } from "lucide-react"
 import { useReservations, updateReservationStatus, Reservation } from "@/hooks/useReservations"
 import { mutate } from "swr"
 import ReservationDetailsPopup from "@/components/ReservationDetailsPopup"
@@ -15,6 +15,7 @@ export default function ReservationsPage() {
   const [activeTab, setActiveTab] = useState("All")
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [isPopupOpen, setIsPopupOpen] = useState(false)
+  const [copiedLinks, setCopiedLinks] = useState<{[key: string]: string}>({})
 
   if (isLoading) {
     return (
@@ -81,9 +82,9 @@ export default function ReservationsPage() {
 
   // Função para formatar moeda
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'BRL'
+      currency: 'USD'
     }).format(amount)
   }
 
@@ -155,11 +156,31 @@ export default function ReservationsPage() {
     }
   }
 
+  // Função para copiar link de pagamento
+  const copyPaymentLink = async (link: string, linkType: string, reservationId: string) => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedLinks(prev => ({ ...prev, [`${reservationId}-${linkType}`]: linkType }))
+      setTimeout(() => {
+        setCopiedLinks(prev => {
+          const newState = { ...prev }
+          delete newState[`${reservationId}-${linkType}`]
+          return newState
+        })
+      }, 2000)
+    } catch (err) {
+      console.error('Erro ao copiar link:', err)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-medium">Reservas</h1>
+      <div className="mt-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-medium">Reservas</h1>
+            <p className="text-gray-600 mt-2">Gerencie todas as reservas de transfer</p>
+          </div>
         </div>
       </div>
 
@@ -205,7 +226,10 @@ export default function ReservationsPage() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pagamento
+                  Status Pagamento
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Links Pagamento
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Valor
@@ -271,10 +295,78 @@ export default function ReservationsPage() {
                     </select>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-500">
-                      <CreditCard className="h-4 w-4 mr-1" />
-                      <span>A definir</span>
-                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      reservation.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
+                      reservation.payment_status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
+                      reservation.payment_status === 'refunded' ? 'bg-gray-100 text-gray-800' :
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {getPaymentStatusText(reservation.payment_status)}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {reservation.payment_links ? (
+                      <div className="space-y-1">
+                        {reservation.payment_type === 'single' ? (
+                          // Pagamento único
+                          <button
+                            onClick={() => copyPaymentLink(
+                              typeof reservation.payment_links === 'string' 
+                                ? JSON.parse(reservation.payment_links).link 
+                                : reservation.payment_links.link,
+                              'single',
+                              reservation.id
+                            )}
+                            className="flex items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200 transition-colors"
+                          >
+                            {copiedLinks[`${reservation.id}-single`] ? (
+                              <><Check className="h-3 w-3 mr-1" /> Copiado!</>
+                            ) : (
+                              <><Copy className="h-3 w-3 mr-1" /> Link Pagamento</>
+                            )}
+                          </button>
+                        ) : (
+                          // Pagamento parcial
+                          <div className="space-y-1">
+                            <button
+                              onClick={() => {
+                                const links = typeof reservation.payment_links === 'string' 
+                                  ? JSON.parse(reservation.payment_links) 
+                                  : reservation.payment_links
+                                copyPaymentLink(links.first_installment, '1st', reservation.id)
+                              }}
+                              className="flex items-center text-xs bg-green-50 hover:bg-green-100 text-green-700 px-2 py-1 rounded border border-green-200 transition-colors w-full"
+                            >
+                              {copiedLinks[`${reservation.id}-1st`] ? (
+                                <><Check className="h-3 w-3 mr-1" /> Copiado!</>
+                              ) : (
+                                <><Copy className="h-3 w-3 mr-1" /> 1ª Parcela</>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                const links = typeof reservation.payment_links === 'string' 
+                                  ? JSON.parse(reservation.payment_links) 
+                                  : reservation.payment_links
+                                copyPaymentLink(links.second_installment, '2nd', reservation.id)
+                              }}
+                              className="flex items-center text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded border border-orange-200 transition-colors w-full"
+                            >
+                              {copiedLinks[`${reservation.id}-2nd`] ? (
+                                <><Check className="h-3 w-3 mr-1" /> Copiado!</>
+                              ) : (
+                                <><Copy className="h-3 w-3 mr-1" /> 2ª Parcela</>
+                              )}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-sm text-gray-500">
+                        <CreditCard className="h-4 w-4 mr-1" />
+                        <span>Sem links</span>
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatCurrency(reservation.total_amount)}
