@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 // Interface para a tabela reservations
 export interface Reservation {
   id: string
+  reservation_number?: string // Número de reserva no formato AZ0005000NYC
   booking_reference: string
   customer_name: string
   customer_email: string

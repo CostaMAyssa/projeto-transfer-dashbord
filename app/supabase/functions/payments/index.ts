@@ -122,11 +122,9 @@ serve(async (req: Request) => {
           console.error('Error saving payment:', paymentError)
         } else {
           // Create reservation automatically
-          const reservationNumber = `RES${Date.now()}`
-          const { error: reservationError } = await supabaseClient
+          const { data: reservationData, error: reservationError } = await supabaseClient
             .from('reservations')
             .insert({
-              reservation_number: reservationNumber,
               customer_name: customerInfo.name,
               customer_email: customerInfo.email,
               customer_phone: customerInfo.phone,
@@ -140,8 +138,18 @@ serve(async (req: Request) => {
               payment_links: JSON.stringify({ link: session.url }),
               payment_type: 'single',
               payment_id: payment?.id,
-              booking_reference: reservationNumber // Adicionar booking_reference
+              booking_reference: 'TEMP-' + Date.now() // Temporary value, will be updated
             })
+            .select('reservation_number')
+            .single()
+
+          // Update booking_reference with the generated reservation_number
+          if (reservationData && !reservationError) {
+            await supabaseClient
+              .from('reservations')
+              .update({ booking_reference: reservationData.reservation_number })
+              .eq('reservation_number', reservationData.reservation_number)
+          }
 
           if (reservationError) {
             console.error('Error creating reservation:', reservationError)
@@ -261,11 +269,9 @@ serve(async (req: Request) => {
             console.error('Error saving installments:', installmentError)
           } else {
             // Create reservation automatically for partial payment
-            const reservationNumber = `RES${Date.now()}`
-            const { error: reservationError } = await supabaseClient
+            const { data: reservationData, error: reservationError } = await supabaseClient
               .from('reservations')
               .insert({
-                reservation_number: reservationNumber,
                 customer_name: customerInfo.name,
                 customer_email: customerInfo.email,
                 customer_phone: customerInfo.phone,
@@ -282,8 +288,18 @@ serve(async (req: Request) => {
                 }),
                 payment_type: 'partial',
                 payment_id: payment.id,
-                booking_reference: reservationNumber // Adicionar booking_reference
+                booking_reference: 'TEMP-' + Date.now() // Temporary value, will be updated
               })
+              .select('reservation_number')
+              .single()
+
+            // Update booking_reference with the generated reservation_number
+            if (reservationData && !reservationError) {
+              await supabaseClient
+                .from('reservations')
+                .update({ booking_reference: reservationData.reservation_number })
+                .eq('reservation_number', reservationData.reservation_number)
+            }
 
             if (reservationError) {
               console.error('Error creating reservation:', reservationError)

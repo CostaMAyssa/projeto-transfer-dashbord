@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check } from "lucide-react"
-import { useReservations, updateReservationStatus, Reservation } from "@/hooks/useReservations"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check, Trash2 } from "lucide-react"
+import { useReservations, updateReservationStatus, deleteReservation, Reservation } from "@/hooks/useReservations"
 import { mutate } from "swr"
 import ReservationDetailsPopup from "@/components/ReservationDetailsPopup"
 
@@ -16,6 +16,8 @@ export default function ReservationsPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
   const [isPopupOpen, setIsPopupOpen] = useState(false)
   const [copiedLinks, setCopiedLinks] = useState<{[key: string]: string}>({})
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{isOpen: boolean, reservationId: string | null}>({isOpen: false, reservationId: null})
+  const [isDeleting, setIsDeleting] = useState(false)
 
   if (isLoading) {
     return (
@@ -173,6 +175,33 @@ export default function ReservationsPage() {
     }
   }
 
+  // Função para confirmar exclusão
+  const handleDeleteClick = (reservationId: string) => {
+    setDeleteConfirmation({ isOpen: true, reservationId })
+  }
+
+  // Função para excluir reserva
+  const handleDeleteReservation = async () => {
+    if (!deleteConfirmation.reservationId) return
+    
+    setIsDeleting(true)
+    try {
+      await deleteReservation(deleteConfirmation.reservationId)
+      mutate('reservations')
+      setDeleteConfirmation({ isOpen: false, reservationId: null })
+    } catch (error) {
+      console.error('Erro ao excluir reserva:', error)
+      alert('Erro ao excluir reserva. Tente novamente.')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  // Função para cancelar exclusão
+  const handleCancelDelete = () => {
+    setDeleteConfirmation({ isOpen: false, reservationId: null })
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="mt-6">
@@ -206,8 +235,8 @@ export default function ReservationsPage() {
 
       {/* Bookings Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden flex-1">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className="overflow-x-auto max-h-[calc(100vh-300px)]">
+          <table className="w-full min-w-[1200px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -226,7 +255,7 @@ export default function ReservationsPage() {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status Pagamento
+                  TIPO DE PAGAMENTO
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Links Pagamento
@@ -246,7 +275,7 @@ export default function ReservationsPage() {
                     <div className="flex items-center">
                       <div>
                         <div className="text-sm font-medium text-gray-900">
-                          {reservation.booking_reference || `#${reservation.id.slice(0, 8)}`}
+                          {reservation.reservation_number || reservation.booking_reference || `#${reservation.id.slice(0, 8)}`}
                         </div>
                         <div className="text-sm text-gray-500">
                           Cliente: {reservation.customer_name}
@@ -372,16 +401,25 @@ export default function ReservationsPage() {
                     {formatCurrency(reservation.total_amount)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button 
-                      onClick={() => {
-                        setSelectedReservation(reservation)
-                        setIsPopupOpen(true)
-                      }}
-                      className="text-[#E95440] hover:text-[#d63d2a] flex items-center"
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      Ver
-                    </button>
+                    <div className="flex items-center justify-end space-x-2">
+                      <button 
+                        onClick={() => {
+                          setSelectedReservation(reservation)
+                          setIsPopupOpen(true)
+                        }}
+                        className="text-[#E95440] hover:text-[#d63d2a] flex items-center px-2 py-1 rounded transition-colors"
+                        title="Ver detalhes"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteClick(reservation.id)}
+                        className="text-red-600 hover:text-red-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-red-50"
+                        title="Excluir reserva"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -462,6 +500,52 @@ export default function ReservationsPage() {
             setSelectedReservation(null)
           }}
         />
+      )}
+
+      {/* Modal de Confirmação de Exclusão */}
+      {deleteConfirmation.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-gray-900">
+                  Confirmar Exclusão
+                </h3>
+              </div>
+            </div>
+            <div className="mb-6">
+              <p className="text-sm text-gray-500">
+                Tem certeza que deseja excluir esta reserva? Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCancelDelete}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E95440] disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteReservation}
+                disabled={isDeleting}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 flex items-center"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Excluindo...
+                  </>
+                ) : (
+                  'Excluir'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
