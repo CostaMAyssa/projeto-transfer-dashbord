@@ -98,7 +98,7 @@ export default function ClientQuotePage() {
             pickup_time: quoteData.pickup_time,
             return_date: quoteData.return_date,
             return_time: quoteData.return_time,
-            vehicle_type: quoteData.vehicle_categories?.name || 'Not specified',
+            vehicle_type: quoteData.vehicle_category_id || 'Not specified',
             passengers: quoteData.passengers,
             luggage: (quoteData.luggage_large || 0) + (quoteData.luggage_small || 0),
             base_price: quoteData.base_price,
@@ -233,7 +233,7 @@ export default function ClientQuotePage() {
           marginBottom: "20px",
           textAlign: "center"
         }}>
-          Voucher / Booking Confirmation
+          QUOTES TRANSFER
         </h1>
         {/* Booking Information */}
         <div style={{ marginBottom: '20px' }}>
@@ -274,20 +274,7 @@ export default function ClientQuotePage() {
               ${quote?.total_amount || '0.00'}
             </span>
           </p>
-          <p style={{ margin: '4px 0', fontSize: '14px' }}>
-            <span style={{ fontWeight: 'bold', color: '#db4038' }}>Status:</span>{' '}
-            <span style={{ 
-              color: status === 'accepted' ? '#16a34a' : 
-                     status === 'rejected' ? '#dc2626' : 
-                     isExpired ? '#6b7280' : '#eab308',
-              fontWeight: 'bold'
-            }}>
-              {status === 'accepted' ? 'Accepted' :
-               status === 'rejected' ? 'Rejected' :
-               isExpired ? 'Expired' :
-               'Pending'}
-            </span>
-          </p>
+
         </div>
 
         {/* Traveller Information */}

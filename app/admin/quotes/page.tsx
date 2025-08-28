@@ -27,6 +27,7 @@ import {
 export default function QuotesPage() {
   const [filter, setFilter] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
+  const [statusFilter, setStatusFilter] = useState("all")
   const { quotes, loading, error, refetch } = useQuotes()
 
   const handleDelete = async (quote: any) => {
@@ -147,9 +148,14 @@ export default function QuotesPage() {
 
   const filteredQuotes = quotes.filter(quote => {
     const matchesFilter = filter === "all" || quote.status === filter
-    const matchesSearch = quote.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         quote.id.toLowerCase().includes(searchTerm.toLowerCase())
-    return matchesFilter && matchesSearch
+    const matchesStatusFilter = statusFilter === "all" || quote.status === statusFilter
+    const matchesSearch = searchTerm === "" || 
+                         quote.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         quote.customer_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         quote.customer_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         quote.booking_reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         quote.id?.toLowerCase().includes(searchTerm.toLowerCase())
+    return matchesFilter && matchesStatusFilter && matchesSearch
   })
 
   // Exibir mensagem de erro se houver problemas ao carregar os orçamentos
@@ -209,9 +215,46 @@ export default function QuotesPage() {
         </div>
       </div>
 
-
-
-
+      {/* Search Bar */}
+      <div className="bg-white rounded-lg border border-border p-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Pesquisar por nome, email, telefone ou referência..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-secondary focus:border-transparent"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-secondary focus:border-transparent"
+            >
+              <option value="all">Todos os Status</option>
+              <option value="draft">Rascunho</option>
+              <option value="sent">Enviado</option>
+              <option value="accepted">Aceito</option>
+              <option value="expired">Expirado</option>
+            </select>
+            <button
+              onClick={() => {
+                setSearchTerm('')
+                setStatusFilter('all')
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-1"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Limpar
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Quotes Table */}
       <div className="bg-white rounded-lg border border-border">
