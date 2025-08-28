@@ -318,30 +318,10 @@ export default function QuotesPage() {
                           R$ {quote.total_amount?.toFixed(2) || '0.00'}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {quote.status === 'draft' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
-                              <Clock className="h-3 w-3 mr-1" />
-                              Rascunho
-                            </span>
-                          )}
-                          {quote.status === 'sent' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                              <Send className="h-3 w-3 mr-1" />
-                              Enviado
-                            </span>
-                          )}
-                          {quote.status === 'accepted' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Aceito
-                            </span>
-                          )}
-                          {quote.status === 'expired' && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
-                              <XCircle className="h-3 w-3 mr-1" />
-                              Expirado
-                            </span>
-                          )}
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Orçamento Feito
+                          </span>
                         </div>
                       </div>
                     </td>

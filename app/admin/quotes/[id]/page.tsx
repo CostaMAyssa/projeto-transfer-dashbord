@@ -51,14 +51,8 @@ export default function QuoteDetailPage() {
   }, [quoteId])
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending": return "text-yellow-600 bg-yellow-50 border-yellow-200"
-      case "sent": return "text-blue-600 bg-blue-50 border-blue-200"
-      case "accepted": return "text-green-600 bg-green-50 border-green-200"
-      case "expired": return "text-red-600 bg-red-50 border-red-200"
-      case "cancelled": return "text-gray-600 bg-gray-50 border-gray-200"
-      default: return "text-gray-600 bg-gray-50 border-gray-200"
-    }
+    // Sempre retorna verde para "Orçamento Feito"
+    return "text-green-600 bg-green-50 border-green-200"
   }
 
   const getStatusIcon = (status: string) => {
@@ -73,14 +67,8 @@ export default function QuoteDetailPage() {
   }
 
   const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "pending": return "Pendente"
-      case "sent": return "Enviado"
-      case "accepted": return "Aceito"
-      case "expired": return "Expirado"
-      case "cancelled": return "Cancelado"
-      default: return status
-    }
+    // Sempre retorna "Orçamento Feito"
+    return "Orçamento Feito"
   }
 
   const getQuoteTypeLabel = (type: string) => {

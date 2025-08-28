@@ -336,6 +336,15 @@ export default function NewQuotePage() {
       const finalBasePrice = hasOutOfCoverage && prev.base_price > 0 ? prev.base_price : basePrice
       const finalTotalCost = hasOutOfCoverage && prev.base_price > 0 ? prev.base_price + extrasTotal : totalCost
       
+      console.log('🔧 CÁLCULO DE TOTAL - DETALHES:')
+      console.log('  - hasOutOfCoverage:', hasOutOfCoverage)
+      console.log('  - prev.base_price:', prev.base_price, '(tipo:', typeof prev.base_price, ')')
+      console.log('  - basePrice calculado:', basePrice, '(tipo:', typeof basePrice, ')')
+      console.log('  - extrasTotal:', extrasTotal, '(tipo:', typeof extrasTotal, ')')
+      console.log('  - totalCost calculado:', totalCost, '(tipo:', typeof totalCost, ')')
+      console.log('  - finalBasePrice (resultado):', finalBasePrice, '(tipo:', typeof finalBasePrice, ')')
+      console.log('  - finalTotalCost (resultado):', finalTotalCost, '(tipo:', typeof finalTotalCost, ')')
+      
       return {
         ...prev,
         base_price: finalBasePrice,
@@ -345,16 +354,42 @@ export default function NewQuotePage() {
   }
 
   const handleExtraQuantityChange = (extraId: string, change: number) => {
+    console.log('🎯 MUDANÇA DE EXTRA:')
+    console.log('  - Extra ID:', extraId)
+    console.log('  - Mudança:', change)
+    
     setFormData(prev => {
       const currentQuantity = prev.extras[extraId] || 0
       const newQuantity = Math.max(0, currentQuantity + change)
       
+      // Encontrar dados do extra
+      const extraData = availableExtras?.find(e => e.id === extraId)
+      
+      console.log('  - Extra nome:', extraData?.name || 'Desconhecido')
+      console.log('  - Extra preço unitário:', extraData?.price || 0)
+      console.log('  - Quantidade anterior:', currentQuantity)
+      console.log('  - Nova quantidade:', newQuantity)
+      console.log('  - Valor total deste extra:', (extraData?.price || 0) * newQuantity)
+      
       const newExtras = { ...prev.extras }
       if (newQuantity === 0) {
         delete newExtras[extraId]
+        console.log('  - Extra removido dos extras')
       } else {
         newExtras[extraId] = newQuantity
+        console.log('  - Extra atualizado nos extras')
       }
+      
+      // Calcular novo total de extras
+      const newExtrasTotal = Object.entries(newExtras).reduce((sum: number, [id, quantity]: [string, number]) => {
+        const extra = availableExtras?.find(e => e.id === id)
+        const extraPrice = (extra?.price || 0) * quantity
+        return sum + extraPrice
+      }, 0)
+      
+      console.log('  - Novo total de extras:', newExtrasTotal)
+      console.log('  - Base price atual:', prev.base_price)
+      console.log('  - Novo total geral será:', prev.base_price + newExtrasTotal)
       
       return {
         ...prev,
@@ -573,14 +608,92 @@ export default function NewQuotePage() {
         notes: formData.notes || null
       }
 
+      // Debug: Análise completa dos dados antes de salvar
+      console.log('\n=== 📋 ANÁLISE FRONTEND - PREPARAÇÃO DE DADOS ===')
+      console.log('📝 FORMDATA ORIGINAL (do formulário):')
+      console.log('  - customer_name:', formData.customer_name, '(tipo:', typeof formData.customer_name, ')')
+      console.log('  - customer_email:', formData.customer_email, '(tipo:', typeof formData.customer_email, ')')
+      console.log('  - customer_phone:', formData.customer_phone, '(tipo:', typeof formData.customer_phone, ')')
+      console.log('  - vehicle_category_id:', formData.vehicle_category_id, '(tipo:', typeof formData.vehicle_category_id, ')')
+      console.log('  - base_price:', formData.base_price, '(tipo:', typeof formData.base_price, ')')
+      console.log('  - total_amount:', formData.total_amount, '(tipo:', typeof formData.total_amount, ')')
+      console.log('  - quote_type:', formData.quote_type, '(tipo:', typeof formData.quote_type, ')')
+      console.log('  - pickup_address:', formData.pickup_address, '(comprimento:', formData.pickup_address?.length, ')')
+      console.log('  - destination_address:', formData.destination_address, '(comprimento:', formData.destination_address?.length, ')')
+      console.log('  - pickup_date:', formData.pickup_date, '(tipo:', typeof formData.pickup_date, ')')
+      console.log('  - pickup_time:', formData.pickup_time, '(tipo:', typeof formData.pickup_time, ')')
+      console.log('  - passengers:', formData.passengers, '(tipo:', typeof formData.passengers, ')')
+      console.log('  - status:', status, '(tipo:', typeof status, ')')
+      
+      console.log('\n🔄 QUOTEDATA PROCESSADO (para envio):')
+      console.log('  - customer_name:', quoteData.customer_name, '(tipo:', typeof quoteData.customer_name, ')')
+      console.log('  - customer_email:', quoteData.customer_email, '(tipo:', typeof quoteData.customer_email, ')')
+      console.log('  - customer_phone:', quoteData.customer_phone, '(tipo:', typeof quoteData.customer_phone, ')')
+      console.log('  - vehicle_category_id:', quoteData.vehicle_category_id, '(tipo:', typeof quoteData.vehicle_category_id, ')')
+      console.log('  - base_price:', quoteData.base_price, '(tipo:', typeof quoteData.base_price, ', Number():', Number(quoteData.base_price), ')')
+      console.log('  - total_amount:', quoteData.total_amount, '(tipo:', typeof quoteData.total_amount, ', Number():', Number(quoteData.total_amount), ')')
+      console.log('  - quote_type:', quoteData.quote_type, '(tipo:', typeof quoteData.quote_type, ')')
+      console.log('  - pickup_address:', quoteData.pickup_address, '(comprimento:', quoteData.pickup_address?.length, ')')
+      console.log('  - destination_address:', quoteData.destination_address, '(comprimento:', quoteData.destination_address?.length, ')')
+      console.log('  - pickup_date:', quoteData.pickup_date, '(tipo:', typeof quoteData.pickup_date, ')')
+      console.log('  - pickup_time:', quoteData.pickup_time, '(tipo:', typeof quoteData.pickup_time, ')')
+      console.log('  - passengers:', quoteData.passengers, '(tipo:', typeof quoteData.passengers, ')')
+      console.log('  - status:', quoteData.status, '(tipo:', typeof quoteData.status, ')')
+      
+      console.log('\n🔍 COMPARAÇÃO PREÇOS (ANTES vs DEPOIS):')
+      console.log('  ANTES - formData.base_price:', formData.base_price, '(', typeof formData.base_price, ')')
+      console.log('  DEPOIS - quoteData.base_price:', quoteData.base_price, '(', typeof quoteData.base_price, ')')
+      console.log('  ANTES - formData.total_amount:', formData.total_amount, '(', typeof formData.total_amount, ')')
+      console.log('  DEPOIS - quoteData.total_amount:', quoteData.total_amount, '(', typeof quoteData.total_amount, ')')
+      
+      console.log('\n✅ VALIDAÇÃO DE CAMPOS OBRIGATÓRIOS:')
+      const validationResults = {
+        customer_name: !!quoteData.customer_name,
+        customer_email: !!quoteData.customer_email,
+        customer_phone: !!quoteData.customer_phone,
+        pickup_address: !!quoteData.pickup_address,
+        destination_address: !!quoteData.destination_address,
+        pickup_date: !!quoteData.pickup_date,
+        pickup_time: !!quoteData.pickup_time,
+        vehicle_category_id: !!quoteData.vehicle_category_id,
+        base_price: quoteData.base_price !== null && quoteData.base_price !== undefined,
+        total_amount: quoteData.total_amount !== null && quoteData.total_amount !== undefined
+      }
+      
+      Object.entries(validationResults).forEach(([field, isValid]) => {
+        console.log(`  ${field}: ${isValid ? '✅ OK' : '❌ FALTANDO'}`)
+      })
+      
+      const missingFields = Object.entries(validationResults)
+        .filter(([, isValid]) => !isValid)
+        .map(([field]) => field)
+      
+      if (missingFields.length > 0) {
+        console.error('🚨 CAMPOS OBRIGATÓRIOS FALTANDO NO FRONTEND:', missingFields)
+      }
+      
+      console.log('\n🎯 DADOS COMPLETOS ENVIADOS PARA createQuote:', JSON.stringify(quoteData, null, 2))
+      console.log('=== FIM DA ANÁLISE FRONTEND ===\n')
+      
       // Salvar no banco de dados
+      console.log('🚀 INICIANDO SALVAMENTO DO ORÇAMENTO...')
+      console.log('📤 DADOS FINAIS SENDO ENVIADOS:')
+      console.log('  - base_price final:', quoteData.base_price, '(tipo:', typeof quoteData.base_price, ')')
+      console.log('  - total_amount final:', quoteData.total_amount, '(tipo:', typeof quoteData.total_amount, ')')
+      console.log('  - extras enviados:', quoteData.extras)
+      
       const savedQuote = await createQuote(quoteData)
       
       if (!savedQuote) {
         throw new Error('Erro ao salvar orçamento')
       }
 
-      console.log('✅ Orçamento salvo com sucesso:', savedQuote)
+      console.log('✅ ORÇAMENTO SALVO COM SUCESSO:')
+      console.log('  - ID salvo:', savedQuote.id)
+      console.log('  - base_price salvo:', savedQuote.base_price, '(tipo:', typeof savedQuote.base_price, ')')
+      console.log('  - total_amount salvo:', savedQuote.total_amount, '(tipo:', typeof savedQuote.total_amount, ')')
+      console.log('  - extras salvos:', savedQuote.extras)
+      console.log('  - Dados completos salvos:', savedQuote)
 
       if (status === 'sent') {
         // Gerar dados do voucher para preview
@@ -1365,15 +1478,30 @@ export default function NewQuotePage() {
                      onChange={(e) => {
                        const value = e.target.value
                        const price = value === '' ? 0 : parseFloat(value)
-                       console.log('🔧 Mudando preço personalizado para:', price)
-                       console.log('🔧 FormData antes da mudança:', formData)
+                       console.log('🔧 MUDANÇA DE PREÇO PERSONALIZADO:')
+                       console.log('  - Valor do input:', value)
+                       console.log('  - Preço parseado:', price, '(tipo:', typeof price, ')')
+                       console.log('  - FormData.base_price antes:', formData.base_price)
+                       console.log('  - FormData.total_amount antes:', formData.total_amount)
+                       console.log('  - Extras atuais:', formData.extras)
+                       
+                       // Calcular total de extras
+                       const currentExtrasTotal = Object.entries(formData.extras).reduce((sum: number, [extraId, quantity]: [string, number]) => {
+                         const extra = availableExtras?.find(e => e.id === extraId)
+                         const extraPrice = (extra?.price || 0) * quantity
+                         return sum + extraPrice
+                       }, 0)
+                       
+                       console.log('  - Total de extras calculado:', currentExtrasTotal)
                        
                        setFormData(prev => {
                          const newData = {...prev, base_price: price}
-                         console.log('🔧 FormData após mudança:', newData)
                          
-                         // Definir o total como apenas o preço base (extras serão somados separadamente)
-                         newData.total_amount = price
+                         // Calcular novo total: preço base + extras
+                         newData.total_amount = price + currentExtrasTotal
+                         
+                         console.log('  - Novo base_price:', newData.base_price)
+                         console.log('  - Novo total_amount:', newData.total_amount, '(base:', price, '+ extras:', currentExtrasTotal, ')')
                          
                          return newData
                        })
@@ -1409,10 +1537,16 @@ export default function NewQuotePage() {
                     let currentBasePrice = formData.base_price
                     let currentTotal = formData.total_amount
                     
-                    // Para modalidade hourly, calcular preço em tempo real
+                    // Para modalidade hourly, verificar se há preço personalizado
                     if (formData.quote_type === "hourly") {
-                      const hourlyRate = formData.service_hours <= 2 ? 100 : 80
-                      currentBasePrice = hourlyRate * Math.max(1, formData.service_hours)
+                      // Se há preço personalizado (base_price > 0), usar ele
+                      if (formData.base_price && formData.base_price > 0) {
+                        currentBasePrice = formData.base_price
+                      } else {
+                        // Caso contrário, calcular preço padrão
+                        const hourlyRate = formData.service_hours <= 2 ? 100 : 80
+                        currentBasePrice = hourlyRate * Math.max(1, formData.service_hours)
+                      }
                       currentTotal = currentBasePrice + extrasTotal
                     } else {
                       // Para outras modalidades, usar o preço base atual + extras
