@@ -352,6 +352,7 @@ export type Database = {
           customer_name: string
           customer_email: string
           customer_phone: string
+          customer_cpf: string | null
           quote_type: 'one-way' | 'round-trip' | 'hourly'
           pickup_address: string
           pickup_coordinates: any | null
@@ -395,6 +396,7 @@ export type Database = {
           customer_name: string
           customer_email: string
           customer_phone: string
+          customer_cpf?: string | null
           quote_type: 'one-way' | 'round-trip' | 'hourly'
           pickup_address: string
           pickup_coordinates?: any | null
@@ -438,6 +440,7 @@ export type Database = {
           customer_name?: string
           customer_email?: string
           customer_phone?: string
+          customer_cpf?: string | null
           quote_type?: 'one-way' | 'round-trip' | 'hourly'
           pickup_address?: string
           pickup_coordinates?: any | null
@@ -473,6 +476,74 @@ export type Database = {
           created_at?: string
           updated_at?: string
           created_by?: string | null
+        }
+      }
+      clients: {
+        Row: {
+          id: string
+          full_name: string
+          email: string
+          phone: string
+          whatsapp: string | null
+          address: string | null
+          company: string | null
+          role: string | null
+          position: string | null
+          tags: string | null
+          stripe_customer_id: string | null
+          preferred_currency: string | null
+          payment_method_id: string | null
+          billing_address: string | null
+          last_interaction: string | null
+          customer_cpf: string | null
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          email: string
+          phone: string
+          whatsapp?: string | null
+          address?: string | null
+          company?: string | null
+          role?: string | null
+          position?: string | null
+          tags?: string | null
+          stripe_customer_id?: string | null
+          preferred_currency?: string | null
+          payment_method_id?: string | null
+          billing_address?: string | null
+          last_interaction?: string | null
+          customer_cpf?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          email?: string
+          phone?: string
+          whatsapp?: string | null
+          address?: string | null
+          company?: string | null
+          role?: string | null
+          position?: string | null
+          tags?: string | null
+          stripe_customer_id?: string | null
+          preferred_currency?: string | null
+          payment_method_id?: string | null
+          billing_address?: string | null
+          last_interaction?: string | null
+          customer_cpf?: string | null
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
       }
     }

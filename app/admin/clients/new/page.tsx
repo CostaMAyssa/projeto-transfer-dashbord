@@ -9,11 +9,11 @@ import { createClient } from "@/hooks/useClients"
 export default function NewClientPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
     phone: '',
-    whatsapp: '',
     address: '',
     company: '',
     position: '',
@@ -27,10 +27,70 @@ export default function NewClientPage() {
   const handleInputChange = (e: any) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+    
+    // Limpar erro do campo quando o usuário começar a digitar
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }))
+    }
+  }
+
+  // Função para validar email
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    return emailRegex.test(email)
+  }
+
+  // Função para validar telefone (formato brasileiro)
+  const validatePhone = (phone: string): boolean => {
+    const phoneRegex = /^\(?\d{2}\)?[\s-]?\d{4,5}[\s-]?\d{4}$/
+    return phoneRegex.test(phone.replace(/\D/g, ''))
+  }
+
+  // Função para validar CPF (formato básico)
+  const validateCPF = (cpf: string): boolean => {
+    if (!cpf) return true // CPF é opcional
+    const cleanCPF = cpf.replace(/\D/g, '')
+    return cleanCPF.length === 11
+  }
+
+  // Função para validar formulário
+  const validateForm = (): boolean => {
+    const newErrors: {[key: string]: string} = {}
+
+    // Campos obrigatórios
+    if (!formData.full_name.trim()) {
+      newErrors.full_name = 'Nome completo é obrigatório'
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email é obrigatório'
+    } else if (!validateEmail(formData.email)) {
+      newErrors.email = 'Email deve ter um formato válido'
+    }
+
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Telefone é obrigatório'
+    } else if (!validatePhone(formData.phone)) {
+      newErrors.phone = 'Telefone deve ter um formato válido (ex: (11) 99999-9999)'
+    }
+
+    // Validações opcionais
+    if (formData.cpf && !validateCPF(formData.cpf)) {
+      newErrors.cpf = 'CPF deve ter 11 dígitos'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   const handleSubmit = async (e: any) => {
     e.preventDefault()
+    
+    // Validar formulário antes de enviar
+    if (!validateForm()) {
+      return
+    }
+    
     setLoading(true)
     
     try {
@@ -38,16 +98,17 @@ export default function NewClientPage() {
       
       // Mapear os campos do formulário para a estrutura da tabela clients
       const clientData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        phone: formData.phone || undefined,
-        company: formData.company || undefined,
-        role: formData.position || undefined, // position -> role na tabela
-        address: formData.address || undefined,
-        tags: formData.tags || undefined,
-        billing_address: formData.billing_address || undefined,
-        notes: formData.notes || undefined,
-        status: formData.status || 'Ativo'
+        full_name: formData.full_name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        company: formData.company.trim() || undefined,
+        role: formData.position.trim() || undefined, // position do formulário -> role na tabela
+        address: formData.address.trim() || undefined,
+        tags: formData.tags.trim() || undefined,
+        billing_address: formData.billing_address.trim() || undefined,
+        customer_cpf: formData.cpf.trim() || undefined, // cpf -> customer_cpf na tabela
+        notes: formData.notes.trim() || undefined,
+        status: formData.status || 'lead'
       }
       
       // Criar cliente usando o hook
@@ -55,9 +116,23 @@ export default function NewClientPage() {
       
       console.log('Cliente criado com sucesso:', newClient)
       router.push('/admin/clients')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao criar cliente:', error)
-      alert('Erro ao salvar cliente. Verifique os dados e tente novamente.')
+      
+      // Tratamento específico para diferentes tipos de erro
+      if (error?.code === '23505') {
+        if (error?.details?.includes('email')) {
+          setErrors({ email: 'Este email já está cadastrado no sistema' })
+        } else if (error?.details?.includes('customer_cpf')) {
+          setErrors({ cpf: 'Este CPF já está cadastrado no sistema' })
+        } else {
+          alert('Dados duplicados encontrados. Verifique as informações.')
+        }
+      } else if (error?.code === '23502') {
+        alert('Campos obrigatórios não preenchidos.')
+      } else {
+        alert('Erro ao salvar cliente. Verifique os dados e tente novamente.')
+      }
     } finally {
       setLoading(false)
     }
@@ -87,26 +162,31 @@ export default function NewClientPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Nome Completo *</label>
               <input type="text" name="full_name" value={formData.full_name} onChange={handleInputChange} required
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary" placeholder="Digite o nome completo" />
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary ${
+                  errors.full_name ? 'border-red-500' : ''
+                }`} placeholder="Digite o nome completo" />
+              {errors.full_name && <p className="text-red-500 text-sm mt-1">{errors.full_name}</p>}
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">E-mail *</label>
               <input type="email" name="email" value={formData.email} onChange={handleInputChange} required
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary" placeholder="email@exemplo.com" />
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary ${
+                  errors.email ? 'border-red-500' : ''
+                }`} placeholder="email@exemplo.com" />
+              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
             
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Telefone *</label>
               <input type="tel" name="phone" value={formData.phone} onChange={handleInputChange} required
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary" placeholder="(11) 99999-9999" />
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary ${
+                  errors.phone ? 'border-red-500' : ''
+                }`} placeholder="(11) 99999-9999" />
+              {errors.phone && <p className="text-red-500 text-sm mt-1">{errors.phone}</p>}
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">WhatsApp</label>
-              <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary" placeholder="(11) 99999-9999" />
-            </div>
+
             
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">Endereço</label>
@@ -155,7 +235,10 @@ export default function NewClientPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">CPF / CNPJ</label>
               <input type="text" name="cpf" value={formData.cpf} onChange={handleInputChange}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary" placeholder="000.000.000-00" />
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-secondary ${
+                  errors.cpf ? 'border-red-500' : ''
+                }`} placeholder="000.000.000-00" />
+              {errors.cpf && <p className="text-red-500 text-sm mt-1">{errors.cpf}</p>}
             </div>
             
             <div>

@@ -12,6 +12,7 @@ import { AddressAutocomplete } from "@/components/AddressAutocomplete"
 import { detectZone } from "@/lib/zone-pricing"
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete"
 import { redirectAfterSave } from "./fix-redirect"
+import { supabase } from '@/lib/supabase'
 import { 
   ArrowLeft,
   Save,
@@ -29,11 +30,13 @@ import {
 
 export default function NewQuotePage() {
   const router = useRouter()
+
   const [formData, setFormData] = useState({
     // Dados do cliente
     customer_name: "",
     customer_email: "",
     customer_phone: "",
+    customer_cpf: "",
     
     // Dados do trajeto
     quote_type: "one-way" as "one-way" | "round-trip" | "hourly",
@@ -82,6 +85,9 @@ export default function NewQuotePage() {
   })
   
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [clientSearchResults, setClientSearchResults] = useState<any[]>([])
+  const [isSearchingClient, setIsSearchingClient] = useState(false)
+  const [selectedClient, setSelectedClient] = useState<any>(null)
   
   // Componente para exibir erro de campo
   const FieldError = ({ fieldName }: { fieldName: string }) => {
@@ -98,6 +104,61 @@ export default function NewQuotePage() {
   // Hooks do Supabase
   const { zones, loading: zonesLoading } = useZones()
   const { categories, loading: categoriesLoading } = useVehicleCategories()
+  
+  // Função para buscar cliente por CPF
+  const searchClientByCPF = async (cpf: string) => {
+    if (!cpf || cpf.length < 11) {
+      setClientSearchResults([])
+      return
+    }
+    
+    setIsSearchingClient(true)
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('customer_cpf', cpf.replace(/\D/g, '')) // Remove caracteres não numéricos
+        .limit(5)
+      
+      if (error) {
+        console.error('Erro ao buscar cliente:', error)
+        setClientSearchResults([])
+      } else {
+        setClientSearchResults(data || [])
+      }
+    } catch (error) {
+      console.error('Erro na busca:', error)
+      setClientSearchResults([])
+    } finally {
+      setIsSearchingClient(false)
+    }
+  }
+  
+  // Função para selecionar cliente encontrado
+  const selectClient = (client: any) => {
+    setSelectedClient(client)
+    setFormData(prev => ({
+      ...prev,
+      customer_name: client.full_name,
+      customer_email: client.email,
+      customer_phone: client.phone,
+      customer_cpf: client.customer_cpf
+    }))
+    setClientSearchResults([])
+  }
+  
+  // Função para limpar seleção de cliente
+  const clearClientSelection = () => {
+    setSelectedClient(null)
+    setFormData(prev => ({
+      ...prev,
+      customer_name: '',
+      customer_email: '',
+      customer_phone: '',
+      customer_cpf: ''
+    }))
+    setClientSearchResults([])
+  }
   const { getPrice, loading: pricingLoading } = useZonePricing()
   const { data: availableExtras, isLoading: extrasLoading } = useExtras()
 
@@ -585,6 +646,7 @@ export default function NewQuotePage() {
         customer_name: formData.customer_name,
         customer_email: formData.customer_email,
         customer_phone: formData.customer_phone,
+        customer_cpf: formData.customer_cpf || null,
         quote_type: formData.quote_type,
         pickup_address: formData.pickup_address,
         pickup_date: formData.pickup_date,
@@ -694,6 +756,32 @@ export default function NewQuotePage() {
       console.log('  - total_amount salvo:', savedQuote.total_amount, '(tipo:', typeof savedQuote.total_amount, ')')
       console.log('  - extras salvos:', savedQuote.extras)
       console.log('  - Dados completos salvos:', savedQuote)
+      
+      // Se um cliente foi selecionado, criar automaticamente a client_interaction
+      if (selectedClient && selectedClient.id) {
+        try {
+          console.log('🔗 CRIANDO VINCULAÇÃO AUTOMÁTICA COM CLIENTE:', selectedClient.full_name)
+          
+          const { error: interactionError } = await supabase
+            .from('client_interactions')
+            .insert({
+              client_id: selectedClient.id,
+              interaction_type: 'quote',
+              reference_id: savedQuote.id,
+              notes: `Orçamento criado automaticamente - ${savedQuote.booking_reference}`
+            })
+          
+          if (interactionError) {
+            console.error('❌ Erro ao criar client_interaction:', interactionError)
+            // Não falha o processo, apenas loga o erro
+          } else {
+            console.log('✅ CLIENT_INTERACTION CRIADA COM SUCESSO')
+          }
+        } catch (error) {
+          console.error('❌ Erro inesperado ao criar client_interaction:', error)
+          // Não falha o processo, apenas loga o erro
+        }
+      }
 
       if (status === 'sent') {
         // Gerar dados do voucher para preview
@@ -788,6 +876,26 @@ export default function NewQuotePage() {
               <h2 className="text-lg font-medium text-text-dark">Dados do Cliente</h2>
             </div>
             
+            {selectedClient && (
+              <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <span className="text-sm font-medium text-green-800">
+                      Cliente vinculado: {selectedClient.full_name}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearClientSelection}
+                    className="text-green-600 hover:text-green-800 text-sm underline"
+                  >
+                    Desvincular
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-text-dark mb-2">
@@ -796,7 +904,7 @@ export default function NewQuotePage() {
                 <input
                   type="text"
                   required
-                  className={`input-standard w-full ${validationErrors.customer_name ? 'border-red-500' : ''}`}
+                  className={`input-standard w-full ${validationErrors.customer_name ? 'border-red-500' : ''} ${selectedClient ? 'bg-gray-50' : ''}`}
                   value={formData.customer_name}
                   onChange={(e) => {
                     setFormData(prev => ({...prev, customer_name: e.target.value}))
@@ -805,6 +913,7 @@ export default function NewQuotePage() {
                     }
                   }}
                   placeholder="João Silva"
+                  disabled={!!selectedClient}
                 />
                 <FieldError fieldName="customer_name" />
               </div>
@@ -816,7 +925,7 @@ export default function NewQuotePage() {
                 <input
                   type="email"
                   required
-                  className={`input-standard w-full ${validationErrors.customer_email ? 'border-red-500' : ''}`}
+                  className={`input-standard w-full ${validationErrors.customer_email ? 'border-red-500' : ''} ${selectedClient ? 'bg-gray-50' : ''}`}
                   value={formData.customer_email}
                   onChange={(e) => {
                     setFormData(prev => ({...prev, customer_email: e.target.value}))
@@ -825,18 +934,19 @@ export default function NewQuotePage() {
                     }
                   }}
                   placeholder="joao@email.com"
+                  disabled={!!selectedClient}
                 />
                 <FieldError fieldName="customer_email" />
               </div>
               
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-text-dark mb-2">
                   Telefone *
                 </label>
                 <input
                   type="tel"
                   required
-                  className={`input-standard w-full ${validationErrors.customer_phone ? 'border-red-500' : ''}`}
+                  className={`input-standard w-full ${validationErrors.customer_phone ? 'border-red-500' : ''} ${selectedClient ? 'bg-gray-50' : ''}`}
                   value={formData.customer_phone}
                   onChange={(e) => {
                     setFormData(prev => ({...prev, customer_phone: e.target.value}))
@@ -845,8 +955,51 @@ export default function NewQuotePage() {
                     }
                   }}
                   placeholder="(11) 99999-9999"
+                  disabled={!!selectedClient}
                 />
                 <FieldError fieldName="customer_phone" />
+              </div>
+              
+              <div className="relative">
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  CPF (Buscar Cliente)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    className="input-standard w-full pr-10"
+                    value={formData.customer_cpf}
+                    onChange={(e) => {
+                      const cpf = e.target.value.replace(/\D/g, '')
+                      setFormData(prev => ({ ...prev, customer_cpf: cpf }))
+                      searchClientByCPF(cpf)
+                    }}
+                    placeholder="00000000000"
+                    maxLength={11}
+                  />
+                  {isSearchingClient && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                    </div>
+                  )}
+                </div>
+                
+                {clientSearchResults.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    {clientSearchResults.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => selectClient(client)}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                      >
+                        <div className="font-medium text-gray-900">{client.full_name}</div>
+                        <div className="text-sm text-gray-500">{client.email}</div>
+                        <div className="text-sm text-gray-500">{client.phone}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

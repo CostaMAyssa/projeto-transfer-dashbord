@@ -29,13 +29,10 @@ export function useClientInteractions(clientId: number) {
   const { data, error, isLoading, mutate } = useSWR(
     clientId ? `client-interactions-${clientId}` : null,
     async () => {
+      // Buscar interações sem JOIN devido à falta de relacionamento FK
       const { data, error } = await supabase
         .from('client_interactions')
-        .select(`
-          *,
-          quotes!left(booking_reference),
-          bookings!left(id)
-        `)
+        .select('*')
         .eq('client_id', clientId)
         .order('created_at', { ascending: false });
 
@@ -44,17 +41,51 @@ export function useClientInteractions(clientId: number) {
         throw error;
       }
 
-      // Mapear os dados para incluir a referência correta
-      const mappedData = data?.map(interaction => ({
-        ...interaction,
-        reference_display: interaction.interaction_type === 'quote' 
-          ? interaction.quotes?.booking_reference 
-          : interaction.interaction_type === 'reservation'
-          ? `BK-${interaction.bookings?.id?.slice(-6)?.toUpperCase() || 'N/A'}`
-          : interaction.reference_id
-      })) || [];
+      // Enriquecer dados manualmente buscando referências relacionadas
+      const enrichedData = [];
+      
+      for (const interaction of data || []) {
+        let enrichedInteraction = { ...interaction };
+        
+        // Buscar dados relacionados baseado no tipo de interação
+        if (interaction.interaction_type === 'quote' && interaction.reference_id) {
+          try {
+            const { data: quote } = await supabase
+              .from('quotes')
+              .select('booking_reference')
+              .eq('id', interaction.reference_id)
+              .single();
+              
+            if (quote) {
+              enrichedInteraction.reference_display = quote.booking_reference;
+              enrichedInteraction.quotes = { booking_reference: quote.booking_reference };
+            }
+          } catch (quoteError) {
+            console.warn('Erro ao buscar quote:', quoteError);
+          }
+        } else if (interaction.interaction_type === 'reservation' && interaction.reference_id) {
+          try {
+            const { data: booking } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('id', interaction.reference_id)
+              .single();
+              
+            if (booking) {
+              enrichedInteraction.reference_display = `BK-${booking.id.slice(-6).toUpperCase()}`;
+              enrichedInteraction.bookings = { id: booking.id };
+            }
+          } catch (bookingError) {
+            console.warn('Erro ao buscar booking:', bookingError);
+          }
+        } else {
+          enrichedInteraction.reference_display = interaction.reference_id;
+        }
+        
+        enrichedData.push(enrichedInteraction);
+      }
 
-      return mappedData as ClientInteraction[];
+      return enrichedData as ClientInteraction[];
     }
   );
 
@@ -71,6 +102,7 @@ export function useAllClientInteractions() {
   const { data, error, isLoading, mutate } = useSWR(
     'all-client-interactions',
     async () => {
+      // Buscar interações com dados do cliente (relacionamento FK existe para clients)
       const { data, error } = await supabase
         .from('client_interactions')
         .select(`
@@ -79,9 +111,7 @@ export function useAllClientInteractions() {
             id,
             full_name,
             email
-          ),
-          quotes!left(booking_reference),
-          bookings!left(id)
+          )
         `)
         .order('created_at', { ascending: false });
 
@@ -90,17 +120,51 @@ export function useAllClientInteractions() {
         throw error;
       }
 
-      // Mapear os dados para incluir a referência correta
-      const mappedData = data?.map(interaction => ({
-        ...interaction,
-        reference_display: interaction.interaction_type === 'quote' 
-          ? interaction.quotes?.booking_reference 
-          : interaction.interaction_type === 'reservation'
-          ? `BK-${interaction.bookings?.id?.slice(-6)?.toUpperCase() || 'N/A'}`
-          : interaction.reference_id
-      })) || [];
+      // Enriquecer dados manualmente para quotes e bookings
+      const enrichedData = [];
+      
+      for (const interaction of data || []) {
+        let enrichedInteraction = { ...interaction };
+        
+        // Buscar dados relacionados baseado no tipo de interação
+        if (interaction.interaction_type === 'quote' && interaction.reference_id) {
+          try {
+            const { data: quote } = await supabase
+              .from('quotes')
+              .select('booking_reference')
+              .eq('id', interaction.reference_id)
+              .single();
+              
+            if (quote) {
+              enrichedInteraction.reference_display = quote.booking_reference;
+              enrichedInteraction.quotes = { booking_reference: quote.booking_reference };
+            }
+          } catch (quoteError) {
+            console.warn('Erro ao buscar quote:', quoteError);
+          }
+        } else if (interaction.interaction_type === 'reservation' && interaction.reference_id) {
+          try {
+            const { data: booking } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('id', interaction.reference_id)
+              .single();
+              
+            if (booking) {
+              enrichedInteraction.reference_display = `BK-${booking.id.slice(-6).toUpperCase()}`;
+              enrichedInteraction.bookings = { id: booking.id };
+            }
+          } catch (bookingError) {
+            console.warn('Erro ao buscar booking:', bookingError);
+          }
+        } else {
+          enrichedInteraction.reference_display = interaction.reference_id;
+        }
+        
+        enrichedData.push(enrichedInteraction);
+      }
 
-      return mappedData;
+      return enrichedData as ClientInteraction[];
     }
   );
 
