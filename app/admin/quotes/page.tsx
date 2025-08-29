@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useQuotes, deleteQuote } from "@/hooks/useQuotes"
+import { useQuotes, deleteQuote, updateQuote } from "@/hooks/useQuotes"
+import EditableQuoteActions from "@/components/EditableQuoteActions"
 import { 
   FileText,
   Plus,
@@ -39,6 +40,21 @@ export default function QuotesPage() {
       } else {
         alert('Erro ao excluir orçamento. Tente novamente.')
       }
+    }
+  }
+
+  const handleUpdate = async (quoteId: string, updates: any) => {
+    try {
+      const success = await updateQuote(quoteId, updates)
+      if (success) {
+        refetch() // Recarrega a lista de orçamentos
+        return true
+      } else {
+        throw new Error('Falha na atualização')
+      }
+    } catch (error) {
+      console.error('Erro ao atualizar orçamento:', error)
+      throw error
     }
   }
 
@@ -371,27 +387,11 @@ export default function QuotesPage() {
 
                     {/* Data / Ações */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col space-y-2">
-                        <div className="text-xs text-gray-500">
-                          {new Date(quote.created_at).toLocaleDateString('pt-BR')}
-                        </div>
-                        <div className="flex space-x-2">
-                          <Link 
-                            href={`/admin/quotes/${quote.booking_reference}`}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="Visualizar"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                          <button 
-                            className="text-red-600 hover:text-red-900" 
-                            title="Excluir"
-                            onClick={() => handleDelete(quote)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
+                      <EditableQuoteActions 
+                        quote={quote}
+                        onDelete={handleDelete}
+                        onUpdate={handleUpdate}
+                      />
                     </td>
                   </tr>
                 )

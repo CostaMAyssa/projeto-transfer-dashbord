@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check, Trash2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check, Trash2, Edit } from "lucide-react"
 import { useReservations, updateReservationStatus, deleteReservation, Reservation } from "@/hooks/useReservations"
 import { mutate } from "swr"
 import ReservationDetailsPopup from "@/components/ReservationDetailsPopup"
@@ -18,6 +18,9 @@ export default function ReservationsPage() {
   const [copiedLinks, setCopiedLinks] = useState<{[key: string]: string}>({})
   const [deleteConfirmation, setDeleteConfirmation] = useState<{isOpen: boolean, reservationId: string | null}>({isOpen: false, reservationId: null})
   const [isDeleting, setIsDeleting] = useState(false)
+  const [editingReservation, setEditingReservation] = useState<string | null>(null)
+  const [editData, setEditData] = useState<any>({})
+  const [isSaving, setIsSaving] = useState(false)
 
   if (isLoading) {
     return (
@@ -411,6 +414,16 @@ export default function ReservationsPage() {
                         title="Ver detalhes"
                       >
                         <Eye className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          // TODO: Implementar funcionalidade de edição
+                          console.log('Editar reserva:', reservation.id)
+                        }}
+                        className="text-blue-600 hover:text-blue-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-blue-50"
+                        title="Editar reserva"
+                      >
+                        <Edit className="h-4 w-4" />
                       </button>
                       <button 
                         onClick={() => handleDeleteClick(reservation.id)}
