@@ -258,7 +258,7 @@ export default function PricingPage() {
                         <option value="">Qualquer</option>
                         <option value="Business Class">Business Class</option>
                         <option value="First Class">First Class</option>
-                        <option value="Business Van/SUV">Business Van/SUV</option>
+                        <option value="Business Minivan/SUV">Business Minivan/SUV</option>
                       </select>
                     ) : (
                       <span className="text-sm">{price.vehicle_type || 'Qualquer'}</span>
@@ -464,7 +464,7 @@ export default function PricingPage() {
                     <option value="">Qualquer tipo</option>
                     <option value="Business Class">Business Class</option>
                     <option value="First Class">First Class</option>
-                    <option value="Business Van/SUV">Business Van/SUV</option>
+                    <option value="Business Minivan/SUV">Business Minivan/SUV</option>
                   </select>
                 </div>
                 <div>

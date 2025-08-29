@@ -367,7 +367,7 @@ export default function VehiclesPage() {
                   >
                     <option value="Business Class">Business Class</option>
                     <option value="First Class">First Class</option>
-                    <option value="Business Van/SUV">Business Van/SUV</option>
+                    <option value="Business Minivan/SUV">Business Minivan/SUV</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -483,7 +483,7 @@ export default function VehiclesPage() {
                   >
                     <option value="Business Class">Business Class</option>
                     <option value="First Class">First Class</option>
-                    <option value="Business Van/SUV">Business Van/SUV</option>
+                    <option value="Business Minivan/SUV">Business Minivan/SUV</option>
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -602,4 +602,4 @@ export default function VehiclesPage() {
       )}
     </div>
   )
-} 
+}

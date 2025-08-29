@@ -1,4 +1,5 @@
 import { ExtraType, VehicleType } from "@/types/booking";
+// Removed unused BookingData import
 
 export const vehicles: VehicleType[] = [
   {
@@ -26,9 +27,9 @@ export const vehicles: VehicleType[] = [
     features: ["Meet & Greet included", "Free cancellation", "Free Waiting time", "Safe and secure travel"]
   },
   {
-    id: "van",
-    name: "Van",
-    category: "VAN",
+    id: "minivan",
+    name: "Minivan",
+    category: "MINIVAN",
     description: "Spacious transport for families and groups",
     models: "Chrysler Pacifica or similar",
     capacity: 7,

@@ -5,10 +5,10 @@
 INSERT INTO vehicles (name, type, passengers, luggage, year, license_plate, status, image_url) VALUES
 ('Mercedes-Benz E-Class', 'Business Class', 3, 2, 2022, 'AZ-1234', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-e-class-2598047.webp'),
 ('Mercedes-Benz S-Class', 'First Class', 3, 3, 2023, 'AZ-5678', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-s-class-2598047.webp'),
-('Mercedes-Benz V-Class', 'Business Van/SUV', 7, 5, 2022, 'AZ-9012', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-v-class-2598047.webp'),
+('Mercedes-Benz V-Class', 'Minivan', 7, 5, 2022, 'AZ-9012', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-v-class-2598047.webp'),
 ('BMW 5 Series', 'Business Class', 3, 2, 2021, 'AZ-3456', 'maintenance', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/bmw-5-series-2598047.webp'),
 ('Audi A8', 'First Class', 3, 3, 2022, 'AZ-7890', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/audi-a8-2598047.webp'),
-('Chevrolet Suburban', 'Business Van/SUV', 7, 6, 2021, 'AZ-1357', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/chevrolet-suburban-2598047.webp');
+('Chevrolet Suburban', 'Minivan', 7, 6, 2021, 'AZ-1357', 'active', 'https://content.app-sources.com/s/98064488125095989/uploads/Images/chevrolet-suburban-2598047.webp');
 
 -- Inserir motoristas
 INSERT INTO drivers (full_name, phone, email, license_number, status, vehicle_id) VALUES
@@ -33,16 +33,16 @@ INSERT INTO extras (name, description, price) VALUES
 INSERT INTO pricing_rules (origin_city, destination_city, vehicle_type, base_price, price_per_km, currency) VALUES
 ('London', 'Heathrow Airport', 'Business Class', 85.00, 2.50, 'GBP'),
 ('London', 'Heathrow Airport', 'First Class', 120.00, 3.00, 'GBP'),
-('London', 'Heathrow Airport', 'Business Van/SUV', 140.00, 3.50, 'GBP'),
+('London', 'Heathrow Airport', 'Minivan', 140.00, 3.50, 'GBP'),
 ('London', 'Gatwick Airport', 'Business Class', 95.00, 2.50, 'GBP'),
 ('London', 'Gatwick Airport', 'First Class', 130.00, 3.00, 'GBP'),
-('London', 'Gatwick Airport', 'Business Van/SUV', 150.00, 3.50, 'GBP'),
+('London', 'Gatwick Airport', 'Minivan', 150.00, 3.50, 'GBP'),
 ('London', 'Stansted Airport', 'Business Class', 105.00, 2.50, 'GBP'),
 ('London', 'Stansted Airport', 'First Class', 140.00, 3.00, 'GBP'),
-('London', 'Stansted Airport', 'Business Van/SUV', 160.00, 3.50, 'GBP'),
+('London', 'Stansted Airport', 'Minivan', 160.00, 3.50, 'GBP'),
 (NULL, NULL, 'Business Class', 75.00, 2.00, 'GBP'), -- Regra geral para Business Class
 (NULL, NULL, 'First Class', 100.00, 2.50, 'GBP'), -- Regra geral para First Class
-(NULL, NULL, 'Business Van/SUV', 120.00, 3.00, 'GBP'); -- Regra geral para Van/SUV
+(NULL, NULL, 'Minivan', 120.00, 3.00, 'GBP'); -- Regra geral para Minivan
 
 -- Inserir algumas reservas de exemplo
 INSERT INTO bookings (pickup_location, dropoff_location, pickup_date, pickup_time, vehicle_id, passengers, luggage, total_amount, status, payment_status, notes) VALUES
@@ -70,4 +70,4 @@ SELECT 'Regras de preço inseridas:', count(*) FROM pricing_rules
 UNION ALL
 SELECT 'Reservas inseridas:', count(*) FROM bookings
 UNION ALL
-SELECT 'Extras de reservas inseridos:', count(*) FROM booking_extras; 
+SELECT 'Extras de reservas inseridos:', count(*) FROM booking_extras;

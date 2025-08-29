@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS vehicles CASCADE;
 CREATE TABLE vehicles (
   id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
   name text NOT NULL,
-  type text NOT NULL,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('Economy', 'Business Class', 'First Class', 'Minivan')),
   passengers integer NOT NULL,
   luggage integer NOT NULL,
   year integer,
@@ -60,4 +60,4 @@ ON CONFLICT (license_plate) DO NOTHING;
 -- Verificar se tudo foi criado corretamente
 SELECT 'Tabela vehicles criada com sucesso!' AS status;
 SELECT COUNT(*) AS total_vehicles FROM vehicles;
-SELECT * FROM vehicles ORDER BY created_at DESC LIMIT 3; 
+SELECT * FROM vehicles ORDER BY created_at DESC LIMIT 3;

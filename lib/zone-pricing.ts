@@ -442,60 +442,60 @@ import {
   // Zone pricing matrix based on the fare table
   export const ZONE_PRICING_MATRIX: Record<string, Record<string, number>> = {
     // All routes FROM EWR
-    'EWR-MAN': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'EWR-BKN': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'EWR-LGA': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'EWR-QNS': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'EWR-BRX': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'EWR-JFK': { SEDAN: 140, SUV: 170, VAN: 160 },
+    'EWR-MAN': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'EWR-BKN': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'EWR-LGA': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'EWR-QNS': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'EWR-BRX': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'EWR-JFK': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
     
     // Routes FROM JFK
-    'JFK-QNS': { SEDAN: 130, SUV: 150, VAN: 140 },
-    'JFK-BKN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'JFK-MAN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'JFK-BRX': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'JFK-LGA': { SEDAN: 100, SUV: 120, VAN: 110 },
-    'JFK-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
+    'JFK-QNS': { SEDAN: 130, SUV: 150, MINIVAN: 140 },
+    'JFK-BKN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'JFK-MAN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'JFK-BRX': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'JFK-LGA': { SEDAN: 100, SUV: 120, MINIVAN: 110 },
+    'JFK-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
     
     // Routes FROM LGA
-    'LGA-MAN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'LGA-BRX': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'LGA-BKN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'LGA-QNS': { SEDAN: 120, SUV: 150, VAN: 140 },
-    'LGA-JFK': { SEDAN: 100, SUV: 120, VAN: 110 },
-    'LGA-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
+    'LGA-MAN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'LGA-BRX': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'LGA-BKN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'LGA-QNS': { SEDAN: 120, SUV: 150, MINIVAN: 140 },
+    'LGA-JFK': { SEDAN: 100, SUV: 120, MINIVAN: 110 },
+    'LGA-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
     
     // Routes FROM MAN
-    'MAN-BKN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'MAN-BRX': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'MAN-QNS': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'MAN-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'MAN-JFK': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'MAN-LGA': { SEDAN: 130, SUV: 160, VAN: 150 },
+    'MAN-BKN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'MAN-BRX': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'MAN-QNS': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'MAN-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'MAN-JFK': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'MAN-LGA': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
     
     // Routes FROM BKN
-    'BKN-BRX': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BKN-QNS': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BKN-MAN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BKN-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'BKN-JFK': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BKN-LGA': { SEDAN: 130, SUV: 160, VAN: 150 },
+    'BKN-BRX': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BKN-QNS': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BKN-MAN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BKN-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'BKN-JFK': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BKN-LGA': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
     
     // Routes FROM BRX
-    'BRX-QNS': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BRX-MAN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BRX-BKN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BRX-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'BRX-JFK': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'BRX-LGA': { SEDAN: 130, SUV: 160, VAN: 150 },
+    'BRX-QNS': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BRX-MAN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BRX-BKN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BRX-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'BRX-JFK': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'BRX-LGA': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
     
     // Routes FROM QNS
-    'QNS-MAN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'QNS-BKN': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'QNS-BRX': { SEDAN: 130, SUV: 160, VAN: 150 },
-    'QNS-EWR': { SEDAN: 140, SUV: 170, VAN: 160 },
-    'QNS-JFK': { SEDAN: 130, SUV: 150, VAN: 140 },
-    'QNS-LGA': { SEDAN: 120, SUV: 150, VAN: 140 }
+    'QNS-MAN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'QNS-BKN': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'QNS-BRX': { SEDAN: 130, SUV: 160, MINIVAN: 150 },
+    'QNS-EWR': { SEDAN: 140, SUV: 170, MINIVAN: 160 },
+    'QNS-JFK': { SEDAN: 130, SUV: 150, MINIVAN: 140 },
+    'QNS-LGA': { SEDAN: 120, SUV: 150, MINIVAN: 140 }
   };
   
   // Route distances in miles (from the fare table)
@@ -551,6 +551,7 @@ import {
       const vehicleMap: Record<string, string> = {
         'SEDAN': 'sedan',
         'SUV': 'suv', 
+        'MINIVAN': 'minivan',
         'VAN': 'minivan',
         'LUXURY': 'minivan'
       };
@@ -606,4 +607,4 @@ import {
     const reverseRouteKey = getRouteKey(destination, origin);
     
     return ROUTE_DISTANCES[routeKey] || ROUTE_DISTANCES[reverseRouteKey] || null;
-  }; 
+  };

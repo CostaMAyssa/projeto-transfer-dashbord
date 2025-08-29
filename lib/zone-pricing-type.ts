@@ -18,7 +18,7 @@ export interface Zone {
   
   export interface VehicleCategory {
     id: string;
-    name: string; // SUV, Sedan, Van
+    name: string; // SUV, Sedan, Minivan
     capacity: number;
     base_price: number; // Preço base em USD
     description?: string;
@@ -45,7 +45,7 @@ export interface Zone {
       address: string;
       coordinates: [number, number];
     };
-    vehicle_category: string; // 'SUV' | 'SEDAN' | 'VAN'
+    vehicle_category: string; // 'SUV' | 'SEDAN' | 'MINIVAN'
     booking_type?: 'one-way' | 'round-trip' | 'hourly';
     duration_hours?: number;
     round_trip_data?: {
@@ -119,8 +119,8 @@ export interface Zone {
       features: ['6 passageiros', 'Espaçoso', 'Luxuoso']
     },
     {
-      id: 'van',
-      name: 'Van',
+      id: 'minivan',
+      name: 'Minivan',
       capacity: 7,
       base_price: 150, // Preço médio da tabela
       description: 'Chrysler Pacifica ou similar',
@@ -188,4 +188,4 @@ export interface Zone {
       type: 'polygonal',
       coverage_area: 'NY'
     }
-  ]; 
+  ];

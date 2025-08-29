@@ -47,7 +47,7 @@ export default function BookingPage() {
         return 85; // Base price do pricing_rules
       case "First Class":
         return 120; // Base price do pricing_rules  
-      case "Business Van/SUV":
+      case "Business Minivan/SUV":
         return 140; // Base price do pricing_rules
       default:
         return 75;
@@ -338,21 +338,21 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              {/* Business Van/SUV */}
+              {/* Business Minivan/SUV */}
               <div className="border rounded-lg mb-6 overflow-hidden transition-all duration-300 hover:bg-gray-50 hover:shadow-lg hover:border-[#E95440]/30 group">
                 <div className="grid grid-cols-1 md:grid-cols-2">
                   <div className="p-6 flex items-center justify-center bg-gray-50 group-hover:bg-gray-100/50">
                     <div className="relative w-full h-48 transition-transform duration-500 ease-in-out group-hover:translate-y-[-8px] group-hover:scale-[1.02]">
                       <Image
                         src="https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-v-class-2598047.webp"
-                        alt="Business Van/SUV"
+                        alt="Business Minivan/SUV"
                         fill
                         className="object-contain transition-all duration-500"
                       />
                     </div>
                   </div>
                   <div className="p-6">
-                    <h3 className="text-xl font-semibold">Business Van/SUV</h3>
+                    <h3 className="text-xl font-semibold">Business Minivan/SUV</h3>
                     <p className="text-sm text-gray-600 mb-2">Mercedes-Benz V-Class, Chevrolet Suburban, Cadillac</p>
 
                     <div className="flex gap-4 mb-4">
@@ -366,7 +366,7 @@ export default function BookingPage() {
                       </div>
                     </div>
 
-                    <div className="text-2xl font-bold mb-2">${getVehiclePrice("Business Van/SUV")}</div>
+                    <div className="text-2xl font-bold mb-2">${getVehiclePrice("Business Minivan/SUV")}</div>
                     <p className="text-sm text-gray-600 mb-4">All prices include VAT, fees & tip.</p>
 
                     <div className="grid grid-cols-2 gap-4 mb-4">
@@ -391,11 +391,11 @@ export default function BookingPage() {
                     <button
                       className="bg-black text-white px-6 py-3 rounded flex items-center justify-center transition-all duration-300 group-hover:bg-[#E95440]"
                       onClick={() => {
-                        const vehicle = getVehicleByType("Business Van/SUV")
+                        const vehicle = getVehicleByType("Business Minivan/SUV")
                         handleVehicleSelect({
-                          type: "Business Van/SUV",
+                          type: "Business Minivan/SUV",
                           model: vehicle?.name || "Mercedes-Benz V-Class",
-                          price: getVehiclePrice("Business Van/SUV"),
+                          price: getVehiclePrice("Business Minivan/SUV"),
                           image: "https://content.app-sources.com/s/98064488125095989/uploads/Images/mercedes-v-class-2598047.webp",
                         })
                       }}
