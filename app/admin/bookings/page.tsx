@@ -415,16 +415,13 @@ export default function ReservationsPage() {
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button 
-                        onClick={() => {
-                          // TODO: Implementar funcionalidade de edição
-                          console.log('Editar reserva:', reservation.id)
-                        }}
+                      <Link 
+                        href={`/admin/bookings/${reservation.id}/edit`}
                         className="text-blue-600 hover:text-blue-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-blue-50"
                         title="Editar reserva"
                       >
                         <Edit className="h-4 w-4" />
-                      </button>
+                      </Link>
                       <button 
                         onClick={() => handleDeleteClick(reservation.id)}
                         className="text-red-600 hover:text-red-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-red-50"
