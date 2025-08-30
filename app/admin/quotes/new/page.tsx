@@ -1422,8 +1422,8 @@ export default function NewQuotePage() {
                             Zona detectada: {zones.find(z => z.id === formData.return_destination_zone_id)?.name || formData.return_destination_zone_id}
                           </span>
                         ) : (
-                          <span className="text-red-600 font-medium">
-                            🚫 Fora de Cobertura - Entre em contato via WhatsApp para confirmação
+                          <span className="text-orange-600 font-medium">
+                            Fora da cobertura. Utilize o manual de ajuste para criar este orçamento personalizado.
                           </span>
                         )}
                       </div>

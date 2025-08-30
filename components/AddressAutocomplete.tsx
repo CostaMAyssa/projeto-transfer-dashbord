@@ -25,12 +25,18 @@ export function AddressAutocomplete({
 }: AddressAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState(value)
+  const [hasSelectedPlace, setHasSelectedPlace] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   
   const { suggestions, loading, error, searchAddresses, clearSuggestions } = useAddressAutocomplete()
 
   // Debounce para evitar muitas chamadas à API
   useEffect(() => {
+    // Não buscar se já foi selecionado um lugar
+    if (hasSelectedPlace) {
+      return
+    }
+
     const timeoutId = setTimeout(() => {
       if (inputValue.length >= 3) {
         searchAddresses(inputValue)
@@ -42,11 +48,13 @@ export function AddressAutocomplete({
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [inputValue, searchAddresses, clearSuggestions])
+  }, [inputValue, searchAddresses, clearSuggestions, hasSelectedPlace])
 
-  // Sincronizar inputValue com value externo
+  // Sincronizar inputValue com value externo apenas se não foi uma seleção interna
   useEffect(() => {
-    setInputValue(value)
+    if (value !== inputValue && !hasSelectedPlace) {
+      setInputValue(value)
+    }
   }, [value])
 
   // Fechar dropdown quando clicar fora
@@ -63,8 +71,13 @@ export function AddressAutocomplete({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
+    const previousValue = inputValue
     setInputValue(newValue)
     onChange(newValue)
+    // Reset hasSelectedPlace quando o usuário modifica o texto após ter selecionado
+    if (hasSelectedPlace && newValue !== previousValue) {
+      setHasSelectedPlace(false)
+    }
   }
 
   const handlePlaceSelect = (place: PlacePrediction) => {
@@ -72,12 +85,16 @@ export function AddressAutocomplete({
     onChange(place.description)
     onPlaceSelect?.(place)
     setIsOpen(false)
+    setHasSelectedPlace(true)
     clearSuggestions()
   }
 
   const handleInputFocus = () => {
-    if (suggestions.length > 0) {
-      setIsOpen(true)
+    // Só abre se não tiver selecionado um lugar ou se o input estiver vazio
+    if (!hasSelectedPlace || inputValue.length === 0) {
+      if (inputValue.length >= 3) {
+        setIsOpen(true)
+      }
     }
   }
 
