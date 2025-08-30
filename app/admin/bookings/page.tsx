@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check, Trash2, Edit } from "lucide-react"
+import { ChevronLeft, ChevronRight, Eye, MapPin, Calendar, Clock, User, Car, CreditCard, Copy, Check, Trash2, Edit, Search } from "lucide-react"
 import { useReservations, updateReservationStatus, deleteReservation, Reservation } from "@/hooks/useReservations"
 import { mutate } from "swr"
 import ReservationDetailsPopup from "@/components/ReservationDetailsPopup"
@@ -11,6 +11,7 @@ export default function ReservationsPage() {
   const { data: reservations, error, isLoading } = useReservations()
   const [currentPage, setCurrentPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('All')
+  const [searchTerm, setSearchTerm] = useState("")
   const [itemsPerPage] = useState(5)
   const [activeTab, setActiveTab] = useState("All")
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
@@ -49,10 +50,19 @@ export default function ReservationsPage() {
     )
   }
 
-  // Filter reservations based on status only
+  // Filter reservations based on status and search term
   const filteredReservations = reservations?.filter(
-    (reservation) =>
-      (statusFilter === "All" || reservation.status === statusFilter.toLowerCase()),
+    (reservation) => {
+      const matchesStatus = statusFilter === "All" || reservation.status === statusFilter.toLowerCase()
+      const matchesSearch = searchTerm === "" || 
+        reservation.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        reservation.reservation_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        reservation.booking_reference?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        reservation.pickup_address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        reservation.destination_address?.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      return matchesStatus && matchesSearch
+    },
   ) || []
 
   // Pagination
@@ -219,7 +229,7 @@ export default function ReservationsPage() {
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <select
               className="px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440]"
               value={statusFilter}
@@ -232,6 +242,17 @@ export default function ReservationsPage() {
               <option value="completed">Concluído</option>
               <option value="cancelled">Cancelado</option>
             </select>
+            
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <input
+                type="text"
+                placeholder="Pesquisar por cliente, reserva, endereço..."
+                className="pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E95440] w-full sm:w-80"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
         </div>
       </div>
