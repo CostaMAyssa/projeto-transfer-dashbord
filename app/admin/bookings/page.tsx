@@ -238,35 +238,35 @@ export default function ReservationsPage() {
 
       {/* Bookings Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden flex-1">
-        <div className="overflow-x-auto max-h-[calc(100vh-300px)]">
-          <table className="w-full min-w-[1200px]">
+        <div className="max-h-[calc(100vh-300px)] overflow-y-auto">
+          <table className="w-full text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Reserva
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="hidden md:table-cell px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Rota
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="hidden sm:table-cell px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Data/Hora
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="hidden lg:table-cell px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Veículo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  TIPO DE PAGAMENTO
+                <th className="hidden xl:table-cell px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Pag.
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Links Pagamento
+                <th className="hidden xl:table-cell px-1 py-1 text-left text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                  Links
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-1 py-1 text-right text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Valor
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-1 py-1 text-right text-[10px] font-medium text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
@@ -274,30 +274,30 @@ export default function ReservationsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {currentReservations.map((reservation) => (
                 <tr key={reservation.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
+                  <td className="px-2 py-2 whitespace-normal align-top">
+                    <div className="flex items-start">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-xs md:text-sm font-medium text-gray-900">
                           {reservation.reservation_number || reservation.booking_reference || `#${reservation.id.slice(0, 8)}`}
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-[11px] text-gray-500">
                           Cliente: {reservation.customer_name}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center text-sm">
-                      <MapPin className="h-4 w-4 text-gray-400 mr-1" />
+                  <td className="hidden md:table-cell px-2 py-2 align-top">
+                    <div className="flex items-start text-xs md:text-sm">
+                      <MapPin className="h-4 w-4 text-gray-400 mr-1 flex-shrink-0" />
                       <div>
-                        <div className="text-gray-900">{reservation.pickup_address}</div>
-                        <div className="text-gray-500">→ {reservation.destination_address}</div>
+                        <div className="text-gray-900 break-words">{reservation.pickup_address}</div>
+                        <div className="text-gray-500 break-words">→ {reservation.destination_address}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm">
-                      <Calendar className="h-4 w-4 text-gray-400 mr-1" />
+                  <td className="hidden sm:table-cell px-2 py-2 whitespace-normal align-top">
+                    <div className="flex items-start text-xs md:text-sm">
+                      <Calendar className="h-4 w-4 text-gray-400 mr-1 flex-shrink-0" />
                       <div>
                         <div className="text-gray-900">{formatDate(reservation.pickup_date)}</div>
                         <div className="text-gray-500 flex items-center">
@@ -307,15 +307,15 @@ export default function ReservationsPage() {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="hidden lg:table-cell px-2 py-2 whitespace-normal align-top">
                     <div className="flex items-center text-sm text-gray-500">
                       <Car className="h-4 w-4 mr-1" />
                       <span>A definir</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-2 py-2 align-top">
                     <select
-                      className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${getStatusColor(reservation.status)}`}
+                      className={`px-2 py-1 rounded-full text-[11px] md:text-xs font-medium border-0 ${getStatusColor(reservation.status)}`}
                       value={reservation.status}
                       onChange={(e) => handleStatusChange(reservation.id, e.target.value)}
                     >
@@ -326,8 +326,8 @@ export default function ReservationsPage() {
                       <option value="cancelled">Cancelada</option>
                     </select>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  <td className="hidden xl:table-cell px-2 py-2 align-top">
+                    <span className={`px-2 py-1 rounded-full text-[11px] md:text-xs font-medium ${
                       reservation.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
                       reservation.payment_status === 'partial' ? 'bg-yellow-100 text-yellow-800' :
                       reservation.payment_status === 'refunded' ? 'bg-gray-100 text-gray-800' :
@@ -336,11 +336,10 @@ export default function ReservationsPage() {
                       {getPaymentStatusText(reservation.payment_status)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="hidden xl:table-cell px-2 py-2 align-top">
                     {reservation.payment_links ? (
                       <div className="space-y-1">
                         {reservation.payment_type === 'single' ? (
-                          // Pagamento único
                           <button
                             onClick={() => copyPaymentLink(
                               typeof reservation.payment_links === 'string' 
@@ -349,7 +348,7 @@ export default function ReservationsPage() {
                               'single',
                               reservation.id
                             )}
-                            className="flex items-center text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200 transition-colors"
+                            className="flex items-center text-[11px] md:text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded border border-blue-200 transition-colors"
                           >
                             {copiedLinks[`${reservation.id}-single`] ? (
                               <><Check className="h-3 w-3 mr-1" /> Copiado!</>
@@ -358,7 +357,6 @@ export default function ReservationsPage() {
                             )}
                           </button>
                         ) : (
-                          // Pagamento parcial
                           <div className="space-y-1">
                             <button
                               onClick={() => {
@@ -367,7 +365,7 @@ export default function ReservationsPage() {
                                   : reservation.payment_links
                                 copyPaymentLink(links.first_installment, '1st', reservation.id)
                               }}
-                              className="flex items-center text-xs bg-green-50 hover:bg-green-100 text-green-700 px-2 py-1 rounded border border-green-200 transition-colors w-full"
+                              className="flex items-center text-[11px] md:text-xs bg-green-50 hover:bg-green-100 text-green-700 px-2 py-1 rounded border border-green-200 transition-colors w-full"
                             >
                               {copiedLinks[`${reservation.id}-1st`] ? (
                                 <><Check className="h-3 w-3 mr-1" /> Copiado!</>
@@ -382,7 +380,7 @@ export default function ReservationsPage() {
                                   : reservation.payment_links
                                 copyPaymentLink(links.second_installment, '2nd', reservation.id)
                               }}
-                              className="flex items-center text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded border border-orange-200 transition-colors w-full"
+                              className="flex items-center text-[11px] md:text-xs bg-orange-50 hover:bg-orange-100 text-orange-700 px-2 py-1 rounded border border-orange-200 transition-colors w-full"
                             >
                               {copiedLinks[`${reservation.id}-2nd`] ? (
                                 <><Check className="h-3 w-3 mr-1" /> Copiado!</>
@@ -400,31 +398,31 @@ export default function ReservationsPage() {
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <td className="px-2 py-2 text-sm text-gray-900 text-right align-top">
                     {formatCurrency(reservation.total_amount)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-2">
+                  <td className="px-2 py-2 text-right text-sm font-medium align-top">
+                    <div className="flex items-center justify-end space-x-1 md:space-x-2">
                       <button 
                         onClick={() => {
                           setSelectedReservation(reservation)
                           setIsPopupOpen(true)
                         }}
-                        className="text-[#E95440] hover:text-[#d63d2a] flex items-center px-2 py-1 rounded transition-colors"
+                        className="text-[#E95440] hover:text-[#d63d2a] flex items-center px-1 md:px-2 py-1 rounded transition-colors"
                         title="Ver detalhes"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <Link 
                         href={`/admin/bookings/${reservation.id}/edit`}
-                        className="text-blue-600 hover:text-blue-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-blue-50"
+                        className="text-blue-600 hover:text-blue-800 flex items-center px-1 md:px-2 py-1 rounded transition-colors hover:bg-blue-50"
                         title="Editar reserva"
                       >
                         <Edit className="h-4 w-4" />
                       </Link>
-                      <button 
+                      <button
                         onClick={() => handleDeleteClick(reservation.id)}
-                        className="text-red-600 hover:text-red-800 flex items-center px-2 py-1 rounded transition-colors hover:bg-red-50"
+                        className="text-red-600 hover:text-red-800 flex items-center px-1 md:px-2 py-1 rounded transition-colors hover:bg-red-50"
                         title="Excluir reserva"
                       >
                         <Trash2 className="h-4 w-4" />
