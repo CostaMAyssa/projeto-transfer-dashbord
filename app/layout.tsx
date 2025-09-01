@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import "./globals.css"
-import { DM_Sans, Shippori_Mincho, Chivo } from "next/font/google"
+import { DM_Sans, Chivo } from "next/font/google"
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -9,11 +9,7 @@ const dmSans = DM_Sans({
   variable: "--font-dm-sans",
 })
 
-const shippori = Shippori_Mincho({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  variable: "--font-shippori",
-})
+
 
 const chivo = Chivo({
   subsets: ["latin"],
@@ -55,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${shippori.variable} ${chivo.variable}`}>
+    <html lang="en" className={`${dmSans.variable} ${chivo.variable}`}>
       <body>{children}</body>
     </html>
   )
