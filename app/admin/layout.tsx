@@ -5,82 +5,64 @@ import { useState, useEffect } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { LanguageProvider } from "@/contexts/language-context"
 import AdminDashboard from "@/components/admin-dashboard"
+import { useAdmin } from "@/hooks/useAdmin"
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [mounted, setMounted] = useState(false)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
+  const [mounted, setMounted] = useState(false)
+  const { user, isLoading } = useAdmin()
 
   useEffect(() => {
     setMounted(true)
+  }, [])
 
-    // Check if user is trying to access login page
-    if (pathname === "/admin/login") {
-      setIsLoading(false)
-      return
-    }
+  // Páginas que não precisam de autenticação
+  const publicPages = ["/admin/login", "/admin/reset-password", "/admin/update-password"]
+  const isPublicPage = publicPages.includes(pathname)
 
-    // Check authentication
-    const checkAuth = () => {
-      const authStatus = localStorage.getItem("admin_authenticated")
-      const authTime = localStorage.getItem("admin_auth_time")
-
-      if (authStatus === "true" && authTime) {
-        // Check if authentication is still valid (24 hours)
-        const authTimestamp = Number.parseInt(authTime)
-        const currentTime = Date.now()
-        const twentyFourHours = 24 * 60 * 60 * 1000
-
-        if (currentTime - authTimestamp < twentyFourHours) {
-          setIsAuthenticated(true)
-        } else {
-          // Authentication expired
-          localStorage.removeItem("admin_authenticated")
-          localStorage.removeItem("admin_auth_time")
-          router.push("/admin/login")
-        }
-      } else {
-        router.push("/admin/login")
-      }
-
-      setIsLoading(false)
-    }
-
-    checkAuth()
-  }, [router, pathname])
-
-  // Show loading screen while checking authentication
-  if (!mounted || isLoading) {
-    return (
-      <div className="min-h-screen bg-background-light flex items-center justify-center">
-        <div className="flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-text-gray">Carregando...</p>
-        </div>
-      </div>
-    )
-  }
-
-  // If on login page, render children directly
-  if (pathname === "/admin/login") {
+  // Se estiver em uma página pública, renderize diretamente
+  if (isPublicPage) {
     return <LanguageProvider>{children}</LanguageProvider>
   }
 
-  // If not authenticated and not on login page, don't render anything
-  // (user will be redirected to login)
-  if (!isAuthenticated) {
-    return null
+  // Aguardar o carregamento da autenticação
+  if (!mounted || isLoading) {
+    return (
+      <LanguageProvider>
+        <div className="min-h-screen bg-background-light flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-text-gray">Verificando autenticação...</p>
+          </div>
+        </div>
+      </LanguageProvider>
+    )
   }
 
+  // Se não há usuário autenticado, redirecionar para login
+  if (!user) {
+    router.push("/admin/login")
+    return (
+      <LanguageProvider>
+        <div className="min-h-screen bg-background-light flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="w-8 h-8 border-4 border-secondary border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-text-gray">Redirecionando para login...</p>
+          </div>
+        </div>
+      </LanguageProvider>
+    )
+  }
+
+  // Para todas as outras páginas, renderize o dashboard com o usuário autenticado
   return (
     <LanguageProvider>
-      <AdminDashboard>{children}</AdminDashboard>
+      <AdminDashboard user={user}>{children}</AdminDashboard>
     </LanguageProvider>
   )
 }

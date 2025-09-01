@@ -20,20 +20,12 @@ interface VehicleCarouselProps {
 
 export default function VehicleCarousel({ vehicles }: VehicleCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0)
-  const [isMobile, setIsMobile] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
   const [touchStart, setTouchStart] = useState(0)
   const [touchEnd, setTouchEnd] = useState(0)
-  const [isClient, setIsClient] = useState(false)
-
-  // Verificar se estamos no cliente
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
 
   // Check if we're on mobile or desktop
   useEffect(() => {
-    if (!isClient) return
-
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 640)
     }
@@ -44,7 +36,7 @@ export default function VehicleCarousel({ vehicles }: VehicleCarouselProps) {
     return () => {
       window.removeEventListener("resize", checkIfMobile)
     }
-  }, [isClient])
+  }, [])
 
   const goToPrevSlide = () => {
     setActiveIndex((prevIndex) => (prevIndex === 0 ? vehicles.length - 1 : prevIndex - 1))
@@ -55,13 +47,13 @@ export default function VehicleCarousel({ vehicles }: VehicleCarouselProps) {
   }
 
   const handleBookNow = () => {
-    if (!isClient) return
-    window.open("https://customer.moovs.app/az-transfer/new/info?moovs_source=widget", "_blank", "noopener,noreferrer")
+    if (typeof window !== "undefined") {
+      window.open("https://customer.moovs.app/az-transfer/new/info?moovs_source=widget", "_blank", "noopener,noreferrer")
+    }
   }
 
   // Detect language based on URL
   const isPortuguese = () => {
-    if (!isClient) return false
     if (typeof window !== "undefined") {
       return window.location.pathname.includes("/pt")
     }

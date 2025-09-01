@@ -8,6 +8,14 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    formats: ['image/webp', 'image/avif'],
+    domains: ['hebbkx1anhila5yf.public.blob.vercel-storage.com', 'content.app-sources.com'],
+  },
+  // Configuração para export estático removida temporariamente
+  // output: 'export',
+  // Otimizações de performance
+  experimental: {
+    optimizeCss: true,
   },
 }
 

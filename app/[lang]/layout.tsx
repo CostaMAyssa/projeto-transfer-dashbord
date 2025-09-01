@@ -15,6 +15,16 @@ export const metadata: Metadata = {
   title: "AZ Transfer | Executive Transportation", // English version
   description:
     "Luxury executive transportation services in New York. Book your transfer with professional drivers and high-quality vehicles.",
+  icons: {
+    icon: "/img/favicon.png",
+    shortcut: "/img/favicon.png",
+    apple: "/img/favicon.png",
+  },
+  openGraph: {
+    title: "AZ Transfer | Executive Transportation",
+    description: "Luxury executive transportation services in New York",
+    images: ["/img/logo.png"],
+  },
   // You can add language-specific keywords and openGraph/twitter details here if needed
 }
 
@@ -27,6 +37,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang={params?.lang || "pt"} className={dmSans.variable} suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/img/favicon.png" />
+      </head>
       <body className="font-dm-sans">
         <ThemeProvider attribute="class" defaultTheme="light" forcedTheme="light" disableTransitionOnChange>
           {children}

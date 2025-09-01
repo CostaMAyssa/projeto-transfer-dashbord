@@ -53,23 +53,30 @@ export interface Translations {
     yesterday: string
     last7Days: string
     last30Days: string
+    last90Days: string
     thisMonth: string
     lastMonth: string
     custom: string
     refresh: string
     export: string
+    filter: string
     totalRevenue: string
     totalTrips: string
     newCustomers: string
+    avgTrip: string
     avgTripTime: string
+    customerSatisfaction: string
     vsPrevious: string
+    vsLastMonth: string
     revenueByPeriod: string
+    revenueEvolution: string
+    viewDetails: string
+    chartPlaceholder: string
     daily: string
     weekly: string
     monthly: string
     revenueChartPlaceholder: string
     tripsByCategory: string
-    filter: string
     categoryChartPlaceholder: string
     mostUsedVehicles: string
     viewAll: string
@@ -85,6 +92,8 @@ export interface Translations {
     completed: string
     inProgress: string
     scheduled: string
+    pending: string
+    cancelled: string
   }
 }
 
@@ -138,23 +147,30 @@ export const en: Translations = {
     yesterday: "Yesterday",
     last7Days: "Last 7 days",
     last30Days: "Last 30 days",
+    last90Days: "Last 90 days",
     thisMonth: "This month",
     lastMonth: "Last month",
     custom: "Custom",
     refresh: "Refresh",
     export: "Export",
+    filter: "Filter",
     totalRevenue: "Total Revenue",
     totalTrips: "Total Trips",
     newCustomers: "New Customers",
+    avgTrip: "Average Trip",
     avgTripTime: "Average Trip Time",
+    customerSatisfaction: "Customer Satisfaction",
     vsPrevious: "vs. previous period",
+    vsLastMonth: "vs. last month",
     revenueByPeriod: "Revenue by Period",
+    revenueEvolution: "Revenue Evolution",
+    viewDetails: "View Details",
+    chartPlaceholder: "Chart placeholder",
     daily: "Daily",
     weekly: "Weekly",
     monthly: "Monthly",
     revenueChartPlaceholder: "Revenue chart will be displayed here",
     tripsByCategory: "Trips by Category",
-    filter: "Filter",
     categoryChartPlaceholder: "Category chart will be displayed here",
     mostUsedVehicles: "Most Used Vehicles",
     viewAll: "View all",
@@ -170,6 +186,8 @@ export const en: Translations = {
     completed: "Completed",
     inProgress: "In Progress",
     scheduled: "Scheduled",
+    pending: "Pending",
+    cancelled: "Cancelled",
   },
 }
 
@@ -223,23 +241,30 @@ export const es: Translations = {
     yesterday: "Ayer",
     last7Days: "Últimos 7 días",
     last30Days: "Últimos 30 días",
+    last90Days: "Últimos 90 días",
     thisMonth: "Este mes",
     lastMonth: "Mes pasado",
     custom: "Personalizado",
     refresh: "Actualizar",
     export: "Exportar",
+    filter: "Filtrar",
     totalRevenue: "Ingresos Totales",
     totalTrips: "Viajes Totales",
     newCustomers: "Nuevos Clientes",
+    avgTrip: "Viaje Promedio",
     avgTripTime: "Tiempo Medio de Viaje",
+    customerSatisfaction: "Satisfacción del Cliente",
     vsPrevious: "vs. período anterior",
+    vsLastMonth: "vs. mes pasado",
     revenueByPeriod: "Ingresos por Período",
+    revenueEvolution: "Evolución de Ingresos",
+    viewDetails: "Ver Detalles",
+    chartPlaceholder: "Gráfico de referencia",
     daily: "Diario",
     weekly: "Semanal",
     monthly: "Mensual",
     revenueChartPlaceholder: "El gráfico de ingresos se mostrará aquí",
     tripsByCategory: "Viajes por Categoría",
-    filter: "Filtrar",
     categoryChartPlaceholder: "El gráfico de categorías se mostrará aquí",
     mostUsedVehicles: "Vehículos Más Utilizados",
     viewAll: "Ver todos",
@@ -255,6 +280,8 @@ export const es: Translations = {
     completed: "Completado",
     inProgress: "En Progreso",
     scheduled: "Programado",
+    pending: "Pendiente",
+    cancelled: "Cancelado",
   },
 }
 
@@ -308,23 +335,30 @@ export const pt: Translations = {
     yesterday: "Ontem",
     last7Days: "Últimos 7 dias",
     last30Days: "Últimos 30 dias",
+    last90Days: "Últimos 90 dias",
     thisMonth: "Este mês",
     lastMonth: "Mês passado",
     custom: "Personalizado",
     refresh: "Atualizar",
     export: "Exportar",
+    filter: "Filtrar",
     totalRevenue: "Receita Total",
     totalTrips: "Total de Viagens",
     newCustomers: "Novos Clientes",
+    avgTrip: "Viagem Média",
     avgTripTime: "Tempo Médio de Viagem",
+    customerSatisfaction: "Satisfação do Cliente",
     vsPrevious: "vs. período anterior",
+    vsLastMonth: "vs. mês anterior",
     revenueByPeriod: "Receita por Período",
+    revenueEvolution: "Evolução de Receita",
+    viewDetails: "Ver Detalhes",
+    chartPlaceholder: "Gráfico de referência",
     daily: "Diário",
     weekly: "Semanal",
     monthly: "Mensal",
     revenueChartPlaceholder: "Gráfico de receita será exibido aqui",
     tripsByCategory: "Viagens por Categoria",
-    filter: "Filtrar",
     categoryChartPlaceholder: "Gráfico de categorias será exibido aqui",
     mostUsedVehicles: "Veículos Mais Utilizados",
     viewAll: "Ver todos",
@@ -340,6 +374,8 @@ export const pt: Translations = {
     completed: "Concluída",
     inProgress: "Em andamento",
     scheduled: "Agendada",
+    pending: "Pendente",
+    cancelled: "Cancelada",
   },
 }
 

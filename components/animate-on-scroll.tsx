@@ -23,15 +23,10 @@ export default function AnimateOnScroll({
   const [isMobile, setIsMobile] = useState(false)
   const [isClient, setIsClient] = useState(false)
 
-  // Verificar se estamos no cliente
+  // Verificar se estamos no cliente e detectar dispositivo móvel
   useEffect(() => {
     setIsClient(true)
-  }, [])
-
-  // Detectar se é dispositivo móvel
-  useEffect(() => {
-    if (!isClient) return
-
+    
     const checkIfMobile = () => {
       setIsMobile(window.innerWidth < 768)
     }
@@ -42,7 +37,7 @@ export default function AnimateOnScroll({
     return () => {
       window.removeEventListener("resize", checkIfMobile)
     }
-  }, [isClient])
+  }, [])
 
   useEffect(() => {
     if (!isClient) return

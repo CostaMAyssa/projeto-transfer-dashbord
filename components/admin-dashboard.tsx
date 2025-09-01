@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import type { User } from "@supabase/supabase-js"
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -16,16 +17,21 @@ import {
   X,
   DollarSign,
   BarChart3,
-  Search,
   ChevronDown,
+  User as UserIcon,
+  CreditCard,
+  FileText,
+  Kanban,
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
+import { logout } from "@/hooks/useAdmin"
 
-export default function AdminDashboard({
-  children,
-}: {
+interface AdminDashboardProps {
   children: React.ReactNode
-}) {
+  user: User | null
+}
+
+export default function AdminDashboard({ children, user }: AdminDashboardProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const { locale, translations } = useLanguage()
@@ -45,10 +51,17 @@ export default function AdminDashboard({
     }
   }, [])
 
-  const handleLogout = () => {
-    localStorage.removeItem("admin_authenticated")
-    localStorage.removeItem("admin_auth_time")
-    window.location.href = "/admin/login"
+  const handleLogout = async () => {
+    try {
+      await logout()
+      window.location.href = "/admin/login"
+    } catch (error) {
+      console.error("Erro ao fazer logout:", error)
+      // Fallback para logout manual
+      localStorage.removeItem("admin_authenticated")
+      localStorage.removeItem("admin_auth_time")
+      window.location.href = "/admin/login"
+    }
   }
 
   return (
@@ -60,19 +73,19 @@ export default function AdminDashboard({
 
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative top-0 left-0 z-50 h-full w-20 md:w-20 bg-primary flex-shrink-0 flex flex-col items-center py-6 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:rounded-tr-xl md:rounded-br-xl ${
+        className={`fixed md:relative top-0 left-0 z-50 h-full w-20 md:w-20 bg-primary flex-shrink-0 flex flex-col items-center py-4 transform transition-transform duration-300 ease-in-out md:translate-x-0 md:rounded-tr-xl md:rounded-br-xl ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
         <div className="flex flex-col h-full items-center">
           {/* Logo */}
-          <div className="mb-8">
-            <div className="relative h-10 w-10 rounded-full bg-white flex items-center justify-center overflow-hidden">
+          <div className="mb-4">
+            <div className="relative h-8 w-8 rounded-full bg-white flex items-center justify-center overflow-hidden">
               <Image
-                src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/AZ_Transfer_Logo-2114669%20%281%29-B2wSNbPiBfGCv1l8HXV55FJExLAfx1.webp"
+                src="/img/logo.png"
                 alt="AZ Transfer Logo"
                 fill
-                className="object-contain p-2"
+                className="object-contain p-1"
               />
             </div>
             <button className="absolute top-4 right-4 md:hidden" onClick={() => setSidebarOpen(false)}>
@@ -82,18 +95,31 @@ export default function AdminDashboard({
 
           {/* Navigation */}
           <nav className="flex-1 w-full">
-            <ul className="space-y-6 flex flex-col items-center">
+            <ul className="space-y-2 flex flex-col items-center">
               <li>
                 <Link
                   href="/admin"
-                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                  className={`flex flex-col items-center justify-center w-10 h-10 rounded transition-colors ${
                     pathname === "/admin"
                       ? "text-white bg-secondary"
                       : "text-gray-400 hover:text-white hover:bg-background-dark"
                   }`}
                 >
-                  <Home className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Home</span>
+                  <Home className="h-4 w-4" />
+                  <span className="text-[8px] mt-0.5">Home</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/quotes"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/quotes")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <FileText className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Quotes</span>
                 </Link>
               </li>
               <li>
@@ -106,7 +132,46 @@ export default function AdminDashboard({
                   }`}
                 >
                   <Calendar className="h-5 w-5" />
-                  <span className="text-2xs mt-1">Trips</span>
+                  <span className="text-2xs mt-1">Reservations</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/clients"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/clients")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <UserIcon className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Contacts</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/crm"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/crm")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <Kanban className="h-5 w-5" />
+                  <span className="text-2xs mt-1">CRM</span>
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/admin/payments"
+                  className={`flex flex-col items-center justify-center w-12 h-12 rounded transition-colors ${
+                    pathname.includes("/admin/payments")
+                      ? "text-white bg-secondary"
+                      : "text-gray-400 hover:text-white hover:bg-background-dark"
+                  }`}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="text-2xs mt-1">Payments</span>
                 </Link>
               </li>
               <li>
@@ -212,11 +277,11 @@ export default function AdminDashboard({
                       <>
                         <span className="mx-2 text-gray-400">/</span>
                         {pathname === "/admin/bookings" ? (
-                          <h1 className="font-medium">Trips</h1>
+                          <h1 className="font-medium">Reservations</h1>
                         ) : (
                           <>
                             <Link href="/admin/bookings" className="text-gray-500 hover:text-gray-700">
-                              Trips
+                              Reservations
                             </Link>
                             <span className="mx-2 text-gray-400">/</span>
                             <h1 className="font-medium">Details</h1>
@@ -236,10 +301,46 @@ export default function AdminDashboard({
                         <h1 className="font-medium">Drivers</h1>
                       </>
                     )}
+                    {pathname.includes("/admin/clients") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        {pathname === "/admin/clients" ? (
+                          <h1 className="font-medium">Contacts</h1>
+                        ) : (
+                          <>
+                            <Link href="/admin/clients" className="text-gray-500 hover:text-gray-700">
+                              Contacts
+                            </Link>
+                            <span className="mx-2 text-gray-400">/</span>
+                            <h1 className="font-medium">
+                              {pathname.includes("/admin/clients/new") ? "New Contact" : "Details"}
+                            </h1>
+                          </>
+                        )}
+                      </>
+                    )}
+                    {pathname.includes("/admin/crm") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        <h1 className="font-medium">CRM</h1>
+                      </>
+                    )}
                     {pathname.includes("/admin/pricing") && (
                       <>
                         <span className="mx-2 text-gray-400">/</span>
                         <h1 className="font-medium">Pricing</h1>
+                      </>
+                    )}
+                    {pathname.includes("/admin/quotes") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        <h1 className="font-medium">Quotes</h1>
+                      </>
+                    )}
+                    {pathname.includes("/admin/payments") && (
+                      <>
+                        <span className="mx-2 text-gray-400">/</span>
+                        <h1 className="font-medium">Payments</h1>
                       </>
                     )}
                     {pathname.includes("/admin/reports") && (
@@ -261,14 +362,6 @@ export default function AdminDashboard({
           </div>
 
           <div className="ml-auto flex items-center space-x-4">
-            <div className="relative">
-              <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-text-gray" />
-              <input
-                type="text"
-                placeholder={translations.common.search}
-                className="input-standard pl-8 py-1.5 text-sm w-40"
-              />
-            </div>
             <div className="flex items-center relative">
               <div ref={dropdownRef}>
                 <button
@@ -278,13 +371,17 @@ export default function AdminDashboard({
                   aria-haspopup="true"
                 >
                   <div className="w-8 h-8 rounded-full bg-background-light flex items-center justify-center overflow-hidden">
-                    <Image
-                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=100&auto=format&fit=crop"
-                      alt="User profile"
-                      width={32}
-                      height={32}
-                      className="object-cover"
-                    />
+                    {user?.user_metadata?.avatar_url ? (
+                      <Image
+                        src={user.user_metadata.avatar_url}
+                        alt="User profile"
+                        width={32}
+                        height={32}
+                        className="object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="w-6 h-6 text-gray-400" />
+                    )}
                   </div>
                   <span className="ml-2 text-sm font-medium hidden md:block">Admin</span>
                   <ChevronDown
@@ -295,11 +392,8 @@ export default function AdminDashboard({
                 {/* Dropdown menu */}
                 {dropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg py-1 z-50">
-                    <Link href="/admin/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      {locale === "pt" ? "Minha Conta" : locale === "es" ? "Mi Cuenta" : "My Account"}
-                    </Link>
                     <Link href="/admin/settings" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                      {translations.common.settings}
+                      {locale === "pt" ? "Minha Conta" : locale === "es" ? "Mi Cuenta" : "My Account"}
                     </Link>
                     <div className="border-t border-gray-100 my-1"></div>
                     <button
