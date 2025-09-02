@@ -19,6 +19,7 @@ import {
 import { useDashboardStats, useRecentBookings, useUpcomingBookings, useTodayBookings } from "@/hooks/useDashboardStats"
 import { useBookings } from "@/hooks/useBookings"
 import { useAdmin } from "@/hooks/useAdmin"
+import { useMonthGoogleCalendar, useTodayGoogleCalendar } from "@/hooks/useGoogleCalendar"
 
 export default function AdminDashboard() {
   const [showCalendar, setShowCalendar] = useState(false)
@@ -29,6 +30,8 @@ export default function AdminDashboard() {
   const { data: todayBookings, error: todayError, isLoading: todayLoading } = useTodayBookings()
   const { data: allBookings } = useBookings()
   const { user } = useAdmin()
+  const { events: monthGoogleEvents } = useMonthGoogleCalendar(currentDate)
+  const { events: todayGoogleEvents } = useTodayGoogleCalendar()
 
   const [gcalStatus, setGcalStatus] = useState<"checking" | "connected" | "disconnected">("checking")
   const [gcalMessage, setGcalMessage] = useState<string>("")
@@ -172,6 +175,27 @@ export default function AdminDashboard() {
     const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     
     return allBookings.filter(booking => booking.pickup_date === dateString)
+  }
+
+  const getGoogleEventsForDate = (day: number) => {
+    if (!monthGoogleEvents || !day) return []
+    
+    const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    
+    return monthGoogleEvents.filter(event => {
+      const eventDate = event.start.date || event.start.dateTime?.split('T')[0]
+      return eventDate === dateString
+    })
+  }
+
+  const formatGoogleEventTime = (event: any) => {
+    if (event.start.dateTime) {
+      return new Date(event.start.dateTime).toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      })
+    }
+    return 'Dia todo'
   }
 
   const navigateMonth = (direction: 'prev' | 'next') => {
@@ -359,6 +383,18 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-7 gap-1 text-center text-sm text-gray-500 mb-2">
               {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => <div key={day}>{day}</div>)}
             </div>
+            
+            {/* Legenda */}
+            <div className="flex items-center justify-center gap-4 mb-4 text-xs">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-blue-100 border border-blue-200 rounded"></div>
+                <span className="text-gray-600">Reservas</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
+                <span className="text-gray-600">Google Calendar</span>
+              </div>
+            </div>
             <div className="grid grid-cols-7 gap-1">
               {generateCalendarDays().map((day, index) => (
                 <div key={index} className={`h-32 border rounded p-2 text-sm ${day ? '' : 'bg-gray-50'}`}>
@@ -368,12 +404,19 @@ export default function AdminDashboard() {
                         {day}
                       </span>
                       <div className="mt-1 space-y-1 overflow-y-auto max-h-20">
+                        {/* Reservas internas */}
                         {getBookingsForDate(day).map(booking => (
-                          <Link key={booking.id} href={`/admin/bookings/${booking.id}`}>
+                          <Link key={`booking-${booking.id}`} href={`/admin/bookings/${booking.id}`}>
                             <div className="text-xs bg-blue-100 text-blue-800 p-1 rounded hover:bg-blue-200 truncate">
                               {booking.pickup_location.split(',')[0]}
                             </div>
                           </Link>
+                        ))}
+                        {/* Eventos do Google Calendar */}
+                        {getGoogleEventsForDate(day).map(event => (
+                          <div key={`gcal-${event.id}`} className="text-xs bg-green-100 text-green-800 p-1 rounded truncate" title={`${event.summary} - ${formatGoogleEventTime(event)}`}>
+                            📅 {event.summary}
+                          </div>
                         ))}
                       </div>
                     </>
@@ -390,9 +433,10 @@ export default function AdminDashboard() {
             </div>
             <div className="border border-border rounded p-4 bg-white">
               <div className="space-y-3">
-                {todayBookings && todayBookings.length > 0 ? (
+                {/* Reservas internas */}
+                {todayBookings && todayBookings.length > 0 && (
                   todayBookings.map((booking) => (
-                    <Link key={booking.id} href={`/admin/bookings/${booking.id}`}>
+                    <Link key={`booking-${booking.id}`} href={`/admin/bookings/${booking.id}`}>
                       <div className="bg-blue-50 p-3 rounded-md border-l-4 border-blue-500 hover:bg-blue-100 transition-colors">
                         <div className="flex justify-between items-start">
                           <div>
@@ -411,10 +455,37 @@ export default function AdminDashboard() {
                       </div>
                     </Link>
                   ))
-                ) : (
+                )}
+                
+                {/* Eventos do Google Calendar */}
+                {todayGoogleEvents && todayGoogleEvents.length > 0 && (
+                  todayGoogleEvents.map((event) => (
+                    <div key={`gcal-${event.id}`} className="bg-green-50 p-3 rounded-md border-l-4 border-green-500">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-sm">📅 {event.summary}</p>
+                          {event.description && (
+                            <p className="text-xs text-gray-500">{event.description}</p>
+                          )}
+                          {event.location && (
+                            <p className="text-xs text-gray-500">📍 {event.location}</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end">
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                            {formatGoogleEventTime(event)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {/* Mensagem quando não há eventos */}
+                {(!todayBookings || todayBookings.length === 0) && (!todayGoogleEvents || todayGoogleEvents.length === 0) && (
                   <div className="text-center py-8 text-gray-500">
                     <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                    <p>Nenhuma reserva para hoje</p>
+                    <p>Nenhuma reserva ou evento agendado</p>
                   </div>
                 )}
               </div>
