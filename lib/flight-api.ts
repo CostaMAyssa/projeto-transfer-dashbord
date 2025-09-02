@@ -9,6 +9,7 @@ export interface FlightAwareConfig {
 
 export interface FlightData {
   flightNumber: string
+  faFlightId?: string // Identificador único da FlightAware
   airline: string
   airlineCode: string
   origin: string
@@ -22,6 +23,26 @@ export interface FlightData {
   gate?: string
   terminal?: string
   aircraftType?: string
+  // Campos para alertas e monitoramento
+  delayMinutes?: number
+  lastUpdated?: Date
+  divergenceAlert?: boolean
+}
+
+export interface FlightAlert {
+  flightNumber: string
+  alertType: 'delay' | 'cancellation' | 'gate_change' | 'time_divergence'
+  message: string
+  severity: 'low' | 'medium' | 'high'
+  timestamp: Date
+}
+
+export interface SmartSchedulingResult {
+  suggestedPickupTime: Date
+  suggestedDropoffTime: Date
+  bufferMinutes: number
+  reasoning: string
+  confidence: 'low' | 'medium' | 'high'
 }
 
 export interface PickupTimeOptions {
@@ -98,9 +119,19 @@ export class FlightAwareService {
   async getAirportArrivals(airport: string, date: string): Promise<FlightData[]> {
     try {
       const icaoCode = this.getIcaoCode(airport)
-      const startTime = `${date}T00:00:00Z`
-      const endTime = `${date}T23:59:59Z`
-      const url = `${this.config.baseUrl}/airports/${icaoCode}/flights/arrivals?start=${encodeURIComponent(startTime)}&end=${encodeURIComponent(endTime)}`
+      
+      const startDate = new Date(date)
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 1)
+      
+      const params = new URLSearchParams({
+        query: `{destination ${icaoCode}}`,
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0],
+        max_pages: '3'
+      })
+      
+      const url = `${this.config.baseUrl}/flights/search?${params}`
       
       const response = await fetch(url, {
         headers: {
@@ -114,7 +145,9 @@ export class FlightAwareService {
       }
 
       const data = await response.json()
-      return data.arrivals?.map((flight: any) => this.mapApiToFlightData(flight)) || []
+      const flights = data.flights || []
+      
+      return flights.map((flight: any) => this.mapApiToFlightData(flight))
     } catch (error) {
       console.error('Erro ao buscar chegadas do aeroporto:', error)
       return []
@@ -179,6 +212,238 @@ export class FlightAwareService {
   }
 
   /**
+   * Monitoramento em tempo real de voo específico
+   */
+  async getRealTimeFlightStatus(flightNumber: string, date: string): Promise<FlightData | null> {
+    try {
+      // Sempre buscar dados atualizados da API para tempo real
+      const apiData = await this.fetchFromFlightAware(flightNumber, date)
+      
+      if (apiData) {
+        // Salvar dados atualizados no banco
+        await this.saveFlightData(apiData)
+        
+        // Verificar se há alertas de divergência
+        const alerts = await this.checkFlightDivergence(apiData)
+        if (alerts.length > 0) {
+          console.log(`Alertas detectados para voo ${flightNumber}:`, alerts)
+        }
+        
+        return apiData
+      }
+      
+      return null
+    } catch (error) {
+      console.error('Erro no monitoramento em tempo real:', error)
+      return null
+    }
+  }
+
+  /**
+   * Verificar divergências e gerar alertas
+   */
+  async checkFlightDivergence(flightData: FlightData): Promise<FlightAlert[]> {
+    const alerts: FlightAlert[] = []
+    
+    try {
+      // Buscar dados anteriores do banco para comparação
+      const { data: previousData } = await dbHelpers.getFlightData(
+        flightData.flightNumber, 
+        flightData.scheduledDeparture.toISOString().split('T')[0]
+      )
+      
+      if (previousData) {
+        const prevScheduledArrival = new Date(previousData.scheduled_arrival)
+        const currentScheduledArrival = flightData.scheduledArrival
+        
+        // Alerta de mudança de horário programado
+        const timeDiff = Math.abs(currentScheduledArrival.getTime() - prevScheduledArrival.getTime()) / (1000 * 60)
+        if (timeDiff > 30) { // Mudança > 30 minutos
+          alerts.push({
+            flightNumber: flightData.flightNumber,
+            alertType: 'time_divergence',
+            message: `Horário programado alterado em ${Math.round(timeDiff)} minutos`,
+            severity: timeDiff > 60 ? 'high' : 'medium',
+            timestamp: new Date()
+          })
+        }
+        
+        // Alerta de mudança de portão
+        if (previousData.gate && flightData.gate && previousData.gate !== flightData.gate) {
+          alerts.push({
+            flightNumber: flightData.flightNumber,
+            alertType: 'gate_change',
+            message: `Portão alterado de ${previousData.gate} para ${flightData.gate}`,
+            severity: 'medium',
+            timestamp: new Date()
+          })
+        }
+      }
+      
+      // Alerta de atraso significativo
+      if (flightData.delayMinutes && flightData.delayMinutes > 30) {
+        alerts.push({
+          flightNumber: flightData.flightNumber,
+          alertType: 'delay',
+          message: `Voo atrasado em ${flightData.delayMinutes} minutos`,
+          severity: flightData.delayMinutes > 120 ? 'high' : 'medium',
+          timestamp: new Date()
+        })
+      }
+      
+      // Alerta de cancelamento
+      if (flightData.status === 'cancelled') {
+        alerts.push({
+          flightNumber: flightData.flightNumber,
+          alertType: 'cancellation',
+          message: 'Voo cancelado',
+          severity: 'high',
+          timestamp: new Date()
+        })
+      }
+      
+      return alerts
+    } catch (error) {
+      console.error('Erro ao verificar divergências:', error)
+      return []
+    }
+  }
+
+  /**
+   * Cálculo inteligente de horários de pickup e dropoff
+   */
+  async calculateSmartScheduling(
+    flightData: FlightData,
+    serviceType: 'arrival' | 'departure',
+    options: PickupTimeOptions = {}
+  ): Promise<SmartSchedulingResult> {
+    try {
+      const {
+        domesticFlight = this.isDomesticFlight(flightData.origin, flightData.destination),
+        hasCheckedBaggage = true,
+        airportCode = serviceType === 'arrival' ? flightData.destination : flightData.origin,
+        customBufferMinutes
+      } = options
+      
+      let bufferMinutes = customBufferMinutes || 0
+      let reasoning = 'Cálculo baseado em: '
+      let confidence: 'low' | 'medium' | 'high' = 'medium'
+      
+      if (!customBufferMinutes) {
+        // Tempo base por tipo de voo
+        if (domesticFlight) {
+          bufferMinutes = 45 // 45 min para voos domésticos
+          reasoning += 'voo doméstico (45min base)'
+        } else {
+          bufferMinutes = 90 // 90 min para voos internacionais
+          reasoning += 'voo internacional (90min base)'
+        }
+        
+        // Adicionar tempo para bagagem
+        if (hasCheckedBaggage) {
+          bufferMinutes += 20
+          reasoning += ', bagagem despachada (+20min)'
+        }
+        
+        // Ajustar por aeroporto específico
+        const airportAdjustments: Record<string, number> = {
+          'GRU': 15, // Guarulhos é mais demorado
+          'SBGR': 15,
+          'GIG': 10, // Galeão moderado
+          'SBGL': 10,
+          'CGH': -10, // Congonhas mais rápido
+          'SBSP': -10
+        }
+        
+        const adjustment = airportAdjustments[airportCode] || 0
+        if (adjustment !== 0) {
+          bufferMinutes += adjustment
+          reasoning += `, aeroporto ${airportCode} (${adjustment > 0 ? '+' : ''}${adjustment}min)`
+        }
+        
+        // Ajustar por atraso conhecido
+        if (flightData.delayMinutes && flightData.delayMinutes > 0) {
+          bufferMinutes += Math.min(flightData.delayMinutes, 60) // Máximo 60 min de ajuste
+          reasoning += `, atraso previsto (+${Math.min(flightData.delayMinutes, 60)}min)`
+          confidence = flightData.delayMinutes > 30 ? 'high' : 'medium'
+        }
+        
+        // Ajustar por horário do dia (rush)
+        const referenceTime = serviceType === 'arrival' ? 
+          (flightData.estimatedArrival || flightData.scheduledArrival) :
+          flightData.scheduledDeparture
+        
+        const hour = referenceTime.getHours()
+        if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+          bufferMinutes += 15
+          reasoning += ', horário de pico (+15min)'
+        }
+      }
+      
+      // Calcular horários sugeridos
+      const referenceTime = serviceType === 'arrival' ? 
+        (flightData.estimatedArrival || flightData.scheduledArrival) :
+        flightData.scheduledDeparture
+      
+      const suggestedPickupTime = new Date(referenceTime)
+      const suggestedDropoffTime = new Date(referenceTime)
+      
+      if (serviceType === 'arrival') {
+        // Para chegadas: pickup após o pouso + buffer
+        suggestedPickupTime.setMinutes(suggestedPickupTime.getMinutes() + bufferMinutes)
+        suggestedDropoffTime.setMinutes(suggestedDropoffTime.getMinutes() + bufferMinutes + 60) // +1h para transfer
+      } else {
+        // Para partidas: pickup antes do voo - buffer
+        suggestedPickupTime.setMinutes(suggestedPickupTime.getMinutes() - bufferMinutes - 60) // -1h para transfer
+        suggestedDropoffTime.setMinutes(suggestedDropoffTime.getMinutes() - bufferMinutes)
+      }
+      
+      // Ajustar confiança baseada na qualidade dos dados
+      if (flightData.status === 'active' && flightData.estimatedArrival) {
+        confidence = 'high'
+      } else if (flightData.status === 'scheduled') {
+        confidence = 'medium'
+      } else {
+        confidence = 'low'
+      }
+      
+      return {
+        suggestedPickupTime,
+        suggestedDropoffTime,
+        bufferMinutes,
+        reasoning,
+        confidence
+      }
+    } catch (error) {
+      console.error('Erro no cálculo inteligente:', error)
+      
+      // Fallback para cálculo simples
+      const fallbackBuffer = 60
+      const referenceTime = serviceType === 'arrival' ? 
+        flightData.scheduledArrival : flightData.scheduledDeparture
+      
+      const suggestedPickupTime = new Date(referenceTime)
+      const suggestedDropoffTime = new Date(referenceTime)
+      
+      if (serviceType === 'arrival') {
+        suggestedPickupTime.setMinutes(suggestedPickupTime.getMinutes() + fallbackBuffer)
+        suggestedDropoffTime.setMinutes(suggestedDropoffTime.getMinutes() + fallbackBuffer + 60)
+      } else {
+        suggestedPickupTime.setMinutes(suggestedPickupTime.getMinutes() - fallbackBuffer - 60)
+        suggestedDropoffTime.setMinutes(suggestedDropoffTime.getMinutes() - fallbackBuffer)
+      }
+      
+      return {
+        suggestedPickupTime,
+        suggestedDropoffTime,
+        bufferMinutes: fallbackBuffer,
+        reasoning: 'Cálculo padrão (erro no cálculo inteligente)',
+        confidence: 'low'
+      }
+    }
+  }
+
+  /**
    * Atualiza dados de voos monitorados
    */
   async updateMonitoredFlights(): Promise<void> {
@@ -187,37 +452,56 @@ export class FlightAwareService {
       
       if (!monitoredBookings?.length) return
 
-      const updates = []
-      
       for (const booking of monitoredBookings) {
-        if (booking.flight_data?.flight_number) {
-          const updatedFlight = await this.getFlightInfo(
+        if (booking.flight_data?.flight_number && booking.flight_data_id) {
+          const updatedFlight = await this.getRealTimeFlightStatus(
             booking.flight_data.flight_number,
-            booking.pickup_date
+            booking.pickup_date || new Date().toISOString().split('T')[0]
           )
           
-          if (updatedFlight && booking.flight_data_id) {
-            updates.push({
-              id: booking.flight_data_id,
-              data: this.mapFlightDataToDatabase(updatedFlight)
+          if (updatedFlight) {
+            // Atualizar os dados do voo no banco usando o flight_data_id correto
+            await dbHelpers.updateFlightStatus(booking.flight_data_id, {
+              flight_status: updatedFlight.status,
+              estimated_arrival: updatedFlight.estimatedArrival?.toISOString(),
+              actual_arrival: updatedFlight.actualArrival?.toISOString(),
+              actual_departure: updatedFlight.actualDeparture?.toISOString(),
+              gate: updatedFlight.gate,
+              terminal: updatedFlight.terminal
             })
           }
         }
-      }
-
-      if (updates.length > 0) {
-        await adminHelpers.batchUpdateFlights(updates)
       }
     } catch (error) {
       console.error('Erro ao atualizar voos monitorados:', error)
     }
   }
 
+  /**
+   * Verificar se é voo doméstico
+   */
+  private isDomesticFlight(origin: string, destination: string): boolean {
+    const brazilianAirports = Object.values(AIRPORT_CODES)
+    return brazilianAirports.includes(origin) && brazilianAirports.includes(destination)
+  }
+
   // Métodos privados
 
   private async fetchFromFlightAware(flightNumber: string, date: string): Promise<FlightData | null> {
     try {
-      const url = `${this.config.baseUrl}/flights/${flightNumber}`
+      // Usar endpoint correto /flights/search com parâmetros de data
+      const startDate = new Date(date)
+      const endDate = new Date(startDate)
+      endDate.setDate(endDate.getDate() + 1)
+      
+      const params = new URLSearchParams({
+        query: flightNumber,
+        start: startDate.toISOString().split('T')[0],
+        end: endDate.toISOString().split('T')[0],
+        max_pages: '1'
+      })
+      
+      const url = `${this.config.baseUrl}/flights/search?${params}`
       
       const response = await fetch(url, {
         headers: {
@@ -231,11 +515,19 @@ export class FlightAwareService {
           console.warn(`Voo ${flightNumber} não encontrado`)
           return null
         }
-        throw new Error(`API Error: ${response.status}`)
+        throw new Error(`API Error: ${response.status} - ${response.statusText}`)
       }
 
       const data = await response.json()
-      return this.mapApiToFlightData(data.flights?.[0])
+      const flights = data.flights || []
+      
+      if (flights.length === 0) {
+        console.warn(`Nenhum voo encontrado para ${flightNumber} na data ${date}`)
+        return null
+      }
+      
+      // Pegar o primeiro voo da lista
+      return this.mapApiToFlightData(flights[0])
     } catch (error) {
       console.error('Erro na API FlightAware:', error)
       return null
@@ -243,21 +535,42 @@ export class FlightAwareService {
   }
 
   private mapApiToFlightData(apiData: any): FlightData {
+    const scheduledDeparture = new Date(apiData.scheduled_out || apiData.scheduled_off)
+    const scheduledArrival = new Date(apiData.scheduled_in || apiData.scheduled_on)
+    const actualDeparture = apiData.actual_out ? new Date(apiData.actual_out) : 
+                           apiData.actual_off ? new Date(apiData.actual_off) : undefined
+    const actualArrival = apiData.actual_in ? new Date(apiData.actual_in) : 
+                         apiData.actual_on ? new Date(apiData.actual_on) : undefined
+    const estimatedArrival = apiData.estimated_in ? new Date(apiData.estimated_in) : 
+                            apiData.estimated_on ? new Date(apiData.estimated_on) : undefined
+    
+    // Calcular atraso em minutos
+    let delayMinutes = 0
+    if (actualArrival && scheduledArrival) {
+      delayMinutes = Math.round((actualArrival.getTime() - scheduledArrival.getTime()) / (1000 * 60))
+    } else if (estimatedArrival && scheduledArrival) {
+      delayMinutes = Math.round((estimatedArrival.getTime() - scheduledArrival.getTime()) / (1000 * 60))
+    }
+    
     return {
-      flightNumber: apiData.ident || apiData.flight_number,
+      flightNumber: apiData.ident,
+      faFlightId: apiData.fa_flight_id,
       airline: apiData.operator || '',
-      airlineCode: apiData.operator_iata || '',
+      airlineCode: apiData.operator_iata || apiData.operator_icao || '',
       origin: apiData.origin?.code || '',
       destination: apiData.destination?.code || '',
-      scheduledDeparture: new Date(apiData.scheduled_out),
-      actualDeparture: apiData.actual_out ? new Date(apiData.actual_out) : undefined,
-      scheduledArrival: new Date(apiData.scheduled_in),
-      actualArrival: apiData.actual_in ? new Date(apiData.actual_in) : undefined,
-      estimatedArrival: apiData.estimated_in ? new Date(apiData.estimated_in) : undefined,
+      scheduledDeparture,
+      actualDeparture,
+      scheduledArrival,
+      actualArrival,
+      estimatedArrival,
       status: this.mapFlightStatus(apiData.status),
       gate: apiData.gate_destination,
       terminal: apiData.terminal_destination,
-      aircraftType: apiData.aircraft_type
+      aircraftType: apiData.aircraft_type,
+      delayMinutes: Math.abs(delayMinutes),
+      lastUpdated: new Date(),
+      divergenceAlert: Math.abs(delayMinutes) > 15 // Alerta se atraso > 15 min
     }
   }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { flightAwareService, FlightData, PickupTimeOptions } from '../lib/flight-api'
+import { flightAwareService, FlightData, FlightAlert, SmartSchedulingResult, PickupTimeOptions } from '../lib/flight-api'
 import { dbHelpers } from '../lib/supabase'
 
 export interface UseFlightDataOptions {
@@ -11,6 +11,8 @@ export interface FlightSearchResult {
   flight: FlightData
   suggestedPickupTime?: Date
   confidence: 'high' | 'medium' | 'low'
+  alerts?: FlightAlert[]
+  smartScheduling?: SmartSchedulingResult
 }
 
 export interface UseFlightDataReturn {
@@ -19,13 +21,19 @@ export interface UseFlightDataReturn {
   error: string | null
   flightData: FlightData | null
   searchResults: FlightSearchResult[]
+  alerts: FlightAlert[]
+  smartScheduling: SmartSchedulingResult | null
   
   // Ações
   searchFlight: (flightNumber: string, date: string) => Promise<FlightData | null>
+  getRealTimeStatus: (flightNumber: string, date: string) => Promise<FlightData | null>
   getAirportArrivals: (airport: string, date: string) => Promise<FlightData[]>
   calculatePickupTime: (flight: FlightData, serviceType: 'arrival' | 'departure', options?: PickupTimeOptions) => Promise<Date>
+  calculateSmartScheduling: (serviceType: 'arrival' | 'departure', options?: PickupTimeOptions) => Promise<SmartSchedulingResult | null>
+  checkFlightDivergence: (flight?: FlightData) => Promise<FlightAlert[]>
   monitorFlight: (flightNumber: string) => Promise<void>
   clearData: () => void
+  refresh: () => Promise<void>
   
   // Utilitários
   formatFlightNumber: (flightNumber: string) => string
@@ -44,6 +52,9 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
   const [error, setError] = useState<string | null>(null)
   const [flightData, setFlightData] = useState<FlightData | null>(null)
   const [searchResults, setSearchResults] = useState<FlightSearchResult[]>([])
+  const [alerts, setAlerts] = useState<FlightAlert[]>([])
+  const [smartScheduling, setSmartScheduling] = useState<SmartSchedulingResult | null>(null)
+  const [lastSearchParams, setLastSearchParams] = useState<{ flightNumber: string; date: string } | null>(null)
 
   // Auto-refresh effect
   useEffect(() => {
@@ -72,12 +83,32 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
   const searchFlight = useCallback(async (flightNumber: string, date: string): Promise<FlightData | null> => {
     setLoading(true)
     setError(null)
+    setAlerts([])
+    setSmartScheduling(null)
     
     try {
       const flight = await flightAwareService.getFlightInfo(flightNumber, date)
       
       if (flight) {
         setFlightData(flight)
+        setLastSearchParams({ flightNumber, date })
+        
+        // Verificar alertas automaticamente
+        const flightAlerts = await flightAwareService.checkFlightDivergence(flight)
+        setAlerts(flightAlerts)
+        
+        // Adicionar aos resultados de busca
+        const result: FlightSearchResult = {
+          flight,
+          confidence: 'medium',
+          alerts: flightAlerts
+        }
+        
+        setSearchResults(prev => {
+          const filtered = prev.filter(r => r.flight.flightNumber !== flight.flightNumber)
+          return [result, ...filtered].slice(0, 10) // Manter apenas os 10 mais recentes
+        })
+        
         return flight
       } else {
         setError('Voo não encontrado')
@@ -91,6 +122,92 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
       setLoading(false)
     }
   }, [])
+
+  // Buscar status em tempo real
+  const getRealTimeStatus = useCallback(async (flightNumber: string, date: string): Promise<FlightData | null> => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const flight = await flightAwareService.getRealTimeFlightStatus(flightNumber, date)
+      
+      if (flight) {
+        setFlightData(flight)
+        setLastSearchParams({ flightNumber, date })
+        
+        // Verificar alertas automaticamente
+        const flightAlerts = await flightAwareService.checkFlightDivergence(flight)
+        setAlerts(flightAlerts)
+        
+        return flight
+      }
+      
+      setError('Não foi possível obter status em tempo real')
+      return null
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar status em tempo real'
+      setError(errorMessage)
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  // Verificar divergências de voo
+  const checkFlightDivergence = useCallback(async (flight?: FlightData): Promise<FlightAlert[]> => {
+    const targetFlight = flight || flightData
+    if (!targetFlight) {
+      setError('Nenhum dado de voo disponível para verificação')
+      return []
+    }
+
+    try {
+      const flightAlerts = await flightAwareService.checkFlightDivergence(targetFlight)
+      setAlerts(flightAlerts)
+      return flightAlerts
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao verificar divergências'
+      setError(errorMessage)
+      return []
+    }
+  }, [flightData])
+
+  // Calcular agendamento inteligente
+  const calculateSmartScheduling = useCallback(async (
+    serviceType: 'arrival' | 'departure',
+    options: PickupTimeOptions = {}
+  ): Promise<SmartSchedulingResult | null> => {
+    if (!flightData) {
+      setError('Nenhum dado de voo disponível para cálculo')
+      return null
+    }
+
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const scheduling = await flightAwareService.calculateSmartScheduling(
+        flightData,
+        serviceType,
+        options
+      )
+      setSmartScheduling(scheduling)
+      return scheduling
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao calcular agendamento'
+      setError(errorMessage)
+      return null
+    } finally {
+      setLoading(false)
+    }
+  }, [flightData])
+
+  // Atualizar dados
+  const refresh = useCallback(async () => {
+    if (lastSearchParams) {
+      await getRealTimeStatus(lastSearchParams.flightNumber, lastSearchParams.date)
+    }
+  }, [lastSearchParams, getRealTimeStatus])
 
   // Buscar chegadas do aeroporto
   const getAirportArrivals = useCallback(async (airport: string, date: string): Promise<FlightData[]> => {
@@ -147,6 +264,9 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setFlightData(null)
     setSearchResults([])
     setError(null)
+    setAlerts([])
+    setSmartScheduling(null)
+    setLastSearchParams(null)
   }, [])
 
   // Utilitários
@@ -177,13 +297,19 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     error,
     flightData,
     searchResults,
+    alerts,
+    smartScheduling,
     
     // Ações
     searchFlight,
+    getRealTimeStatus,
     getAirportArrivals,
     calculatePickupTime,
+    calculateSmartScheduling,
+    checkFlightDivergence,
     monitorFlight,
     clearData,
+    refresh,
     
     // Utilitários
     formatFlightNumber,
