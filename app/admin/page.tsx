@@ -20,6 +20,7 @@ import { useDashboardStats, useRecentBookings, useUpcomingBookings, useTodayBook
 import { useBookings } from "@/hooks/useBookings"
 import { useAdmin } from "@/hooks/useAdmin"
 import { useMonthGoogleCalendar, useTodayGoogleCalendar } from "@/hooks/useGoogleCalendar"
+import CreateEventPopup from "@/components/create-event-popup"
 
 export default function AdminDashboard() {
   const [showCalendar, setShowCalendar] = useState(false)
@@ -35,10 +36,20 @@ export default function AdminDashboard() {
 
   const [gcalStatus, setGcalStatus] = useState<"checking" | "connected" | "disconnected">("checking")
   const [gcalMessage, setGcalMessage] = useState<string>("")
+  const [showCreateEventPopup, setShowCreateEventPopup] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string>("")
 
   const handleConnectGoogle = () => {
     // Redireciona para iniciar o fluxo OAuth
     window.location.href = "/api/calendar/auth"
+  }
+
+  const handleCreateEvent = (day: number) => {
+    const year = currentDate.getFullYear()
+    const month = currentDate.getMonth()
+    const dateStr = new Date(year, month, day).toISOString().split('T')[0]
+    setSelectedDate(dateStr)
+    setShowCreateEventPopup(true)
   }
 
   const checkGoogleCalendarStatus = async (uid: string) => {
@@ -397,13 +408,22 @@ export default function AdminDashboard() {
             </div>
             <div className="grid grid-cols-7 gap-1">
               {generateCalendarDays().map((day, index) => (
-                <div key={index} className={`h-32 border rounded p-2 text-sm ${day ? '' : 'bg-gray-50'}`}>
+                <div key={index} className={`h-32 border rounded p-2 text-sm relative ${day ? '' : 'bg-gray-50'}`}>
                   {day && (
                     <>
-                      <span className={`flex items-center justify-center h-6 w-6 rounded-full ${isToday(day) ? 'bg-secondary text-white' : ''}`}>
-                        {day}
-                      </span>
-                      <div className="mt-1 space-y-1 overflow-y-auto max-h-20">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className={`flex items-center justify-center h-6 w-6 rounded-full ${isToday(day) ? 'bg-secondary text-white' : ''}`}>
+                          {day}
+                        </span>
+                        <button
+                          onClick={() => handleCreateEvent(day)}
+                          className="w-5 h-5 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center text-xs transition-colors"
+                          title="Criar evento"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                      <div className="space-y-1 overflow-y-auto max-h-16">
                         {/* Reservas internas */}
                         {getBookingsForDate(day).map(booking => (
                           <Link key={`booking-${booking.id}`} href={`/admin/bookings/${booking.id}`}>
@@ -610,6 +630,12 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+      
+      <CreateEventPopup
+        isOpen={showCreateEventPopup}
+        onClose={() => setShowCreateEventPopup(false)}
+        selectedDate={selectedDate}
+      />
     </div>
   )
 }

@@ -16,16 +16,29 @@ interface GoogleCalendarEvent {
   location?: string
 }
 
+interface CreateEventData {
+  summary: string
+  description?: string
+  start: string // ISO string
+  end: string // ISO string
+  timezone?: string
+  location?: string
+  attendees?: { email: string }[]
+}
+
 interface UseGoogleCalendarResult {
   events: GoogleCalendarEvent[]
   isLoading: boolean
   error: string | null
   refetch: () => void
+  createEvent: (eventData: CreateEventData) => Promise<{ success: boolean; event?: any; error?: string }>
+  isCreating: boolean
 }
 
 export function useGoogleCalendar(timeMin?: string, timeMax?: string): UseGoogleCalendarResult {
   const [events, setEvents] = useState<GoogleCalendarEvent[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isCreating, setIsCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { user } = useAdmin()
 
@@ -68,11 +81,48 @@ export function useGoogleCalendar(timeMin?: string, timeMax?: string): UseGoogle
     fetchEvents()
   }, [user?.id, timeMin, timeMax])
 
+  const createEvent = async (eventData: CreateEventData) => {
+    if (!user?.id) {
+      return { success: false, error: 'Usuário não autenticado' }
+    }
+
+    setIsCreating(true)
+    try {
+      const response = await fetch('/api/calendar/events', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ...eventData,
+          userId: user.id
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Recarregar eventos após criar um novo
+        await fetchEvents()
+        return { success: true, event: data.event }
+      } else {
+        return { success: false, error: data.error || 'Erro ao criar evento' }
+      }
+    } catch (err) {
+      console.error('Erro ao criar evento:', err)
+      return { success: false, error: 'Erro de conexão ao criar evento' }
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
   return {
     events,
     isLoading,
+    isCreating,
     error,
-    refetch: fetchEvents
+    refetch: fetchEvents,
+    createEvent
   }
 }
 
