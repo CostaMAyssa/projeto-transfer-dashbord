@@ -18,6 +18,7 @@ import {
 } from "lucide-react"
 import { useDashboardStats, useRecentBookings, useUpcomingBookings, useTodayBookings } from "@/hooks/useDashboardStats"
 import { useBookings } from "@/hooks/useBookings"
+import { useAdmin } from "@/hooks/useAdmin"
 
 export default function AdminDashboard() {
   const [showCalendar, setShowCalendar] = useState(false)
@@ -27,6 +28,66 @@ export default function AdminDashboard() {
   const { data: upcomingBookings, error: upcomingError, isLoading: upcomingLoading } = useUpcomingBookings()
   const { data: todayBookings, error: todayError, isLoading: todayLoading } = useTodayBookings()
   const { data: allBookings } = useBookings()
+  const { user } = useAdmin()
+
+  const [gcalStatus, setGcalStatus] = useState<"checking" | "connected" | "disconnected">("checking")
+  const [gcalMessage, setGcalMessage] = useState<string>("")
+
+  const handleConnectGoogle = () => {
+    // Redireciona para iniciar o fluxo OAuth
+    window.location.href = "/api/calendar/auth"
+  }
+
+  const checkGoogleCalendarStatus = async (uid: string) => {
+    try {
+      setGcalStatus("checking")
+      const now = new Date()
+      const inOneHour = new Date(now.getTime() + 60 * 60 * 1000)
+      const params = new URLSearchParams({
+        userId: uid,
+        timeMin: now.toISOString(),
+        timeMax: inOneHour.toISOString(),
+      })
+      const res = await fetch(`/api/calendar/events?${params.toString()}`)
+      if (res.ok) {
+        setGcalStatus("connected")
+        setGcalMessage("")
+      } else {
+        const data = await res.json().catch(() => ({}))
+        if (res.status === 400 && data?.error) {
+          setGcalStatus("disconnected")
+          setGcalMessage("Conta do Google não conectada")
+        } else {
+          setGcalStatus("disconnected")
+          setGcalMessage("Não foi possível verificar o status da integração")
+        }
+      }
+    } catch (e) {
+      setGcalStatus("disconnected")
+      setGcalMessage("Erro ao verificar integração")
+    }
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+
+    // Se veio do callback (?gcal_connected=1), atualiza status
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("gcal_connected") === "1") {
+      setGcalStatus("connected")
+      // Limpa o parâmetro da URL
+      url.searchParams.delete("gcal_connected")
+      window.history.replaceState({}, "", url.toString())
+    } else if (url.searchParams.get("gcal_error")) {
+      setGcalStatus("disconnected")
+      setGcalMessage("Falha ao conectar ao Google Calendar")
+      url.searchParams.delete("gcal_error")
+      window.history.replaceState({}, "", url.toString())
+    } else {
+      // Verifica status consultando o endpoint
+      checkGoogleCalendarStatus(user.id)
+    }
+  }, [user?.id])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -242,7 +303,32 @@ export default function AdminDashboard() {
           <h2 className="text-lg font-medium font-dm-sans">
             {showCalendar ? 'Calendário de Reservas' : 'Agenda de Hoje'}
           </h2>
-          <div className="flex space-x-2">
+          <div className="flex items-center gap-2">
+            <div
+              className={`hidden md:flex items-center text-xs px-2 py-1 rounded border ${
+                gcalStatus === 'connected'
+                  ? 'border-green-200 text-green-700 bg-green-50'
+                  : gcalStatus === 'checking'
+                  ? 'border-gray-200 text-gray-600 bg-gray-50'
+                  : 'border-red-200 text-red-700 bg-red-50'
+              }`}
+              title={gcalMessage || undefined}
+            >
+              <span
+                className={`inline-block w-2 h-2 rounded-full mr-2 ${
+                  gcalStatus === 'connected' ? 'bg-green-500' : gcalStatus === 'checking' ? 'bg-gray-400' : 'bg-red-500'
+                }`}
+              />
+              <span>
+                {gcalStatus === 'connected' ? 'Google Calendar conectado' : gcalStatus === 'checking' ? 'Verificando integração...' : 'Google Calendar desconectado'}
+              </span>
+            </div>
+            <button
+              onClick={handleConnectGoogle}
+              className="px-3 py-1 text-sm rounded bg-secondary text-white hover:bg-secondary/90"
+            >
+              Conectar Google Calendar
+            </button>
             <button 
               onClick={() => setShowCalendar(false)}
               className={`px-3 py-1 text-sm rounded ${!showCalendar ? 'bg-secondary text-white' : 'bg-background-light text-text-gray hover:bg-gray-200'}`}

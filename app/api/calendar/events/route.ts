@@ -2,13 +2,42 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
 
 async function getAccessToken(userId: string | null) {
-  const { data, error } = await supabaseAdmin
-    .from('integrations_google')
-    .select('access_token')
-    .eq('user_id', userId)
-    .maybeSingle()
-  if (error) throw error
-  return data?.access_token as string | undefined
+  console.log('🔍 [getAccessToken] Iniciando busca do token para userId:', userId)
+  
+  if (!userId) {
+    console.log('❌ [getAccessToken] userId é null ou undefined')
+    return null
+  }
+
+  try {
+    console.log('🔗 [getAccessToken] Usando supabaseAdmin')
+    
+    const { data, error } = await supabaseAdmin
+      .from('integrations_google')
+      .select('access_token')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    console.log('📊 [getAccessToken] Resultado da consulta:')
+    console.log('  - error:', error)
+    console.log('  - data:', data ? 'Token encontrado' : 'Nenhum token')
+
+    if (error) {
+      console.log('❌ [getAccessToken] Erro do Supabase:', JSON.stringify(error, null, 2))
+      throw error
+    }
+    
+    if (!data) {
+      console.log('❌ [getAccessToken] Nenhum dado retornado')
+      return undefined
+    }
+
+    console.log('✅ [getAccessToken] Token obtido com sucesso')
+    return data?.access_token as string | undefined
+  } catch (err) {
+    console.log('💥 [getAccessToken] Erro inesperado:', err)
+    throw err
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -59,8 +88,16 @@ export async function GET(request: NextRequest) {
     const timeMax = searchParams.get('timeMax') || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     const userId = searchParams.get('userId')
 
+    console.log('🔍 [Calendar API] Iniciando busca de eventos:')
+    console.log('  - userId:', userId)
+    console.log('  - timeMin:', timeMin)
+    console.log('  - timeMax:', timeMax)
+
     const accessToken = await getAccessToken(userId || null)
+    console.log('🔑 [Calendar API] Access token obtido:', accessToken ? 'SIM' : 'NÃO')
+    
     if (!accessToken) {
+      console.log('❌ [Calendar API] Erro: Conta do Google não conectada')
       return NextResponse.json({ error: 'Conta do Google não conectada' }, { status: 400 })
     }
 
@@ -81,8 +118,16 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true, events: data.items || [] })
-  } catch (err: any) {
-    console.error('Erro ao listar eventos:', err)
-    return NextResponse.json({ error: 'Erro interno', details: err?.message }, { status: 500 })
+  } catch (error) {
+    console.log('💥 [Calendar API] Erro interno capturado:')
+    console.log('  - Tipo do erro:', typeof error)
+    console.log('  - Erro completo:', error)
+    console.log('  - Stack trace:', error instanceof Error ? error.stack : 'N/A')
+    console.log('  - Message:', error instanceof Error ? error.message : String(error))
+    
+    return NextResponse.json({ 
+      error: 'Erro interno do servidor',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }

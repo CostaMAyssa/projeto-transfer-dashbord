@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { OAuth2Client } from 'google-auth-library'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { createServerClient } from '@supabase/ssr'
 
 function getOAuthClient() {
   const clientId = process.env.GOOGLE_CLIENT_ID
@@ -43,28 +44,54 @@ export async function GET(request: NextRequest) {
     const refreshToken = tokens.refresh_token
     const expiryDate = tokens.expiry_date ? new Date(tokens.expiry_date) : null
 
-    // Obter usuário logado (admin) opcionalmente via header X-User-Id ou ignorar e salvar global
-    const userId = request.headers.get('x-user-id') || null
+    // Obter usuário logado da sessão do Supabase
+    const cookieStore = cookies()
+    const supabaseServer = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+          set() {},
+          remove() {}
+        }
+      }
+    )
+    
+    const { data: { user } } = await supabaseServer.auth.getUser()
+    const userId = user?.id || null
+    
+    console.log('🔍 [Callback] UserId obtido da sessão:', userId)
 
-    // Persistir tokens em tabela "integrations_google" (crie via Supabase) ou fallback em tabela de settings
-    // Espera-se uma tabela com colunas: id (uuid), user_id (uuid, nullable), access_token (text), refresh_token (text), expiry_date (timestamptz), scope (text), token_type (text), created_at, updated_at
+    // Persistir tokens em tabela "integrations_google"
+    console.log('💾 [Callback] Salvando tokens no banco de dados...')
+    console.log('  - userId:', userId)
+    console.log('  - accessToken presente:', !!accessToken)
+    console.log('  - refreshToken presente:', !!refreshToken)
+    
+    const tokenData = {
+      user_id: userId,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expiry_date: expiryDate?.toISOString() || null,
+      scope: tokens.scope || null,
+      token_type: tokens.token_type || null,
+      updated_at: new Date().toISOString(),
+    }
+    
     const { data, error: upsertError } = await supabaseAdmin
       .from('integrations_google')
-      .upsert({
-        user_id: userId,
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        expiry_date: expiryDate?.toISOString() || null,
-        scope: tokens.scope || null,
-        token_type: tokens.token_type || null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id', ignoreDuplicates: false })
+      .upsert(tokenData, { onConflict: 'user_id', ignoreDuplicates: false })
       .select()
       .single()
 
     if (upsertError) {
-      console.error('Erro ao salvar tokens do Google:', upsertError)
+      console.error('❌ [Callback] Erro ao salvar tokens do Google:', JSON.stringify(upsertError, null, 2))
       // Continua mas envia alerta ao UI
+    } else {
+      console.log('✅ [Callback] Tokens salvos com sucesso:', data?.id)
     }
 
     // Limpar cookie state

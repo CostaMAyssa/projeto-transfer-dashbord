@@ -9,8 +9,6 @@ const dmSans = DM_Sans({
   variable: "--font-dm-sans",
 })
 
-
-
 const chivo = Chivo({
   subsets: ["latin"],
   weight: ["400", "700"],
@@ -33,16 +31,16 @@ export const metadata: Metadata = {
     title: "AZ Transfer | Transporte Executivo Premium",
     description:
       "Serviços de transporte executivo de luxo em Nova York. Reserve seu transfer com motoristas profissionais e veículos de alta qualidade.",
-    images: [{ url: "/images/az-logo.png" }], // Assuming you have a logo at this path
+    images: [{ url: "/images/az-logo.png" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "AZ Transfer | Transporte Executivo Premium",
     description:
       "Serviços de transporte executivo de luxo em Nova York. Reserve seu transfer com motoristas profissionais e veículos de alta qualidade.",
-    images: ["/images/az-logo.png"], // Assuming you have a logo at this path
+    images: ["/images/az-logo.png"],
   },
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -51,10 +49,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${dmSans.variable} ${chivo.variable}`}>
+    <html lang="pt" className={`${dmSans.variable} ${chivo.variable}`}>
       <body>{children}</body>
     </html>
   )
 }
-
-import "./globals.css"
