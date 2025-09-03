@@ -54,6 +54,9 @@ serve(async (req: Request) => {
 
     if (req.method === 'POST') {
       const { quoteId, paymentType, firstInstallmentPercentage, customerInfo }: PaymentRequest = await req.json()
+      
+      console.log('🚀 [Payment] Função de pagamento iniciada')
+      console.log('📋 [Payment] Dados recebidos:', { quoteId, paymentType, customerInfo })
 
       // Get quote details
       const { data: quote, error: quoteError } = await supabaseClient
@@ -121,6 +124,7 @@ serve(async (req: Request) => {
         if (paymentError) {
           console.error('Error saving payment:', paymentError)
         } else {
+          console.log('✅ [Payment] Pagamento salvo com sucesso, criando reserva...')
           // Create reservation automatically
           const { data: reservationData, error: reservationError } = await supabaseClient
             .from('reservations')
@@ -140,8 +144,105 @@ serve(async (req: Request) => {
               payment_id: payment?.id,
               booking_reference: 'TEMP-' + Date.now() // Temporary value, will be updated
             })
-            .select('reservation_number')
+            .select('*')
             .single()
+
+          console.log('📊 [Reservation] Resultado da criação da reserva:', { reservationData: !!reservationData, reservationError })
+          
+          // Create Google Calendar event if reservation was created successfully
+          if (reservationData && !reservationError) {
+            console.log('🎯 [Calendar] Condições atendidas, iniciando integração com Google Calendar...')
+            try {
+              // Validate date fields before creating Date objects
+              console.log('📅 [Calendar] Validando dados de data:', {
+                pickup_date: quote.pickup_date,
+                pickup_time: quote.pickup_time
+              })
+              
+              if (!quote.pickup_date) {
+                throw new Error('pickup_date is required for calendar event')
+              }
+              
+              // Prepare event data with date validation
+              const pickupDateTime = new Date(`${quote.pickup_date}T${quote.pickup_time || '12:00:00'}`)
+              
+              // Check if the date is valid
+              if (isNaN(pickupDateTime.getTime())) {
+                throw new Error(`Invalid pickup date/time: ${quote.pickup_date} ${quote.pickup_time || '12:00'}`)
+              }
+              
+              const endDateTime = new Date(pickupDateTime.getTime() + 2 * 60 * 60 * 1000) // +2 hours
+              
+              console.log('📅 [Calendar] Datas processadas:', {
+                pickupDateTime: pickupDateTime.toISOString(),
+                endDateTime: endDateTime.toISOString()
+              })
+              
+              const eventData = {
+                summary: reservationData.reservation_number, // Apenas o ID da reserva como título
+                description: `Transfer Service\n\nCliente: ${customerInfo.name}\nEmail: ${customerInfo.email}\nTelefone: ${customerInfo.phone}\n\nOrigem: ${quote.pickup_address || quote.pickup_location}\nDestino: ${quote.destination_address || quote.dropoff_location}\n\nValor: $${quote.total_amount}\nStatus: Confirmado`,
+                start: pickupDateTime.toISOString(),
+                end: endDateTime.toISOString(),
+                timezone: 'America/Sao_Paulo',
+                location: quote.pickup_address || quote.pickup_location,
+                userId: null // No user authentication required
+              }
+
+              // Call calendar API to create event
+              console.log('🗓️ [Calendar] Iniciando criação de evento no Google Calendar...')
+              console.log('📋 [Calendar] Dados da reserva:', {
+                reservation_number: reservationData.reservation_number,
+                customer_name: customerInfo.name,
+                pickup_date: quote.pickup_date,
+                pickup_address: quote.pickup_address || quote.pickup_location
+              })
+              
+              console.log('📤 [Calendar] Dados do evento a serem enviados:', eventData)
+              
+              const baseUrl = Deno.env.get('NEXT_PUBLIC_APP_URL') || Deno.env.get('NEXT_PUBLIC_BASE_URL') || 'https://dashboard.aztransfergroup.com'
+              console.log('🌐 [Calendar] Variáveis de ambiente disponíveis:')
+              console.log('🌐 [Calendar] NEXT_PUBLIC_APP_URL:', Deno.env.get('NEXT_PUBLIC_APP_URL'))
+              console.log('🌐 [Calendar] NEXT_PUBLIC_BASE_URL:', Deno.env.get('NEXT_PUBLIC_BASE_URL'))
+              console.log('🌐 [Calendar] Base URL final:', baseUrl)
+              console.log('🌐 [Calendar] Fazendo requisição para:', `${baseUrl}/api/calendar/events`)
+              
+              const calendarResponse = await fetch(`${baseUrl}/api/calendar/events`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(eventData)
+              })
+
+              console.log('📡 [Calendar] Status da resposta:', calendarResponse.status)
+              console.log('📡 [Calendar] Headers da resposta:', Object.fromEntries(calendarResponse.headers.entries()))
+
+              if (calendarResponse.ok) {
+                const calendarResult = await calendarResponse.json()
+                console.log('✅ [Calendar] Evento criado no Google Calendar com sucesso!')
+                console.log('🆔 [Calendar] Dados do evento criado:', calendarResult)
+                
+                // Update reservation with Google Calendar event ID
+                if (calendarResult.event?.id) {
+                  console.log('💾 [Calendar] Atualizando reserva com ID do evento:', calendarResult.event?.id)
+                  const updateResult = await supabaseClient
+                    .from('reservations')
+                    .update({ google_event_id: calendarResult.event?.id })
+                    .eq('id', reservationData.id)
+                  
+                  console.log('💾 [Calendar] Resultado da atualização da reserva:', updateResult)
+                }
+              } else {
+                const errorText = await calendarResponse.text()
+                console.error('❌ [Calendar] Erro ao criar evento no Google Calendar')
+                console.error('❌ [Calendar] Status:', calendarResponse.status)
+                console.error('❌ [Calendar] Erro:', errorText)
+              }
+            } catch (calendarError) {
+              console.error('❌ Erro na integração com Google Calendar:', calendarError)
+              // Continue execution - reservation was created successfully
+            }
+          }
 
           // Update booking_reference with the generated reservation_number
           if (reservationData && !reservationError) {
@@ -303,6 +404,99 @@ serve(async (req: Request) => {
 
             if (reservationError) {
               console.error('Error creating reservation:', reservationError)
+            } else if (reservationData) {
+              // Create Google Calendar event for partial payment reservation
+              console.log('🎯 [Calendar] Condições atendidas para pagamento parcelado, iniciando integração com Google Calendar...')
+              try {
+                // Validate date fields before creating Date objects
+                console.log('📅 [Calendar] Validando dados de data:', {
+                  pickup_date: quote.pickup_date,
+                  pickup_time: quote.pickup_time
+                })
+                
+                if (!quote.pickup_date) {
+                  throw new Error('pickup_date is required for calendar event')
+                }
+                
+                // Prepare event data with date validation
+                const pickupDateTime = new Date(`${quote.pickup_date}T${quote.pickup_time || '12:00:00'}`)
+                
+                // Check if the date is valid
+                if (isNaN(pickupDateTime.getTime())) {
+                  throw new Error(`Invalid pickup date/time: ${quote.pickup_date} ${quote.pickup_time || '12:00'}`)
+                }
+                
+                const endDateTime = new Date(pickupDateTime.getTime() + 2 * 60 * 60 * 1000) // +2 hours
+                
+                console.log('📅 [Calendar] Datas processadas:', {
+                  pickupDateTime: pickupDateTime.toISOString(),
+                  endDateTime: endDateTime.toISOString()
+                })
+                
+                const eventData = {
+                  summary: reservationData.reservation_number, // Apenas o ID da reserva como título
+                  description: `Transfer Service (Pagamento Parcelado)\n\nCliente: ${customerInfo.name}\nEmail: ${customerInfo.email}\nTelefone: ${customerInfo.phone}\n\nOrigem: ${quote.pickup_address || quote.pickup_location}\nDestino: ${quote.destination_address || quote.dropoff_location}\n\nValor: $${quote.total_amount}\nStatus: Confirmado - Pagamento Parcelado`,
+                  start: pickupDateTime.toISOString(),
+                  end: endDateTime.toISOString(),
+                  timezone: 'America/Sao_Paulo',
+                  location: quote.pickup_address || quote.pickup_location,
+                  userId: null // No user authentication required
+                }
+
+                // Call calendar API to create event
+                console.log('🗓️ [Calendar] Iniciando criação de evento no Google Calendar para pagamento parcelado...')
+                console.log('📋 [Calendar] Dados da reserva:', {
+                  reservation_number: reservationData.reservation_number,
+                  customer_name: customerInfo.name,
+                  pickup_date: quote.pickup_date,
+                  pickup_address: quote.pickup_address || quote.pickup_location
+                })
+                
+                console.log('📤 [Calendar] Dados do evento a serem enviados:', eventData)
+                
+                const baseUrl = Deno.env.get('NEXT_PUBLIC_APP_URL') || Deno.env.get('NEXT_PUBLIC_BASE_URL') || 'http://localhost:3000'
+                console.log('🌐 [Calendar] Variáveis de ambiente disponíveis:')
+                console.log('🌐 [Calendar] NEXT_PUBLIC_APP_URL:', Deno.env.get('NEXT_PUBLIC_APP_URL'))
+                console.log('🌐 [Calendar] NEXT_PUBLIC_BASE_URL:', Deno.env.get('NEXT_PUBLIC_BASE_URL'))
+                console.log('🌐 [Calendar] Base URL final:', baseUrl)
+                console.log('🌐 [Calendar] Fazendo requisição para:', `${baseUrl}/api/calendar/events`)
+                
+                const calendarResponse = await fetch(`${baseUrl}/api/calendar/events`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(eventData)
+                })
+
+                console.log('📡 [Calendar] Status da resposta:', calendarResponse.status)
+                console.log('📡 [Calendar] Headers da resposta:', Object.fromEntries(calendarResponse.headers.entries()))
+
+                if (calendarResponse.ok) {
+                  const calendarResult = await calendarResponse.json()
+                  console.log('✅ [Calendar] Evento criado no Google Calendar com sucesso para pagamento parcelado!')
+                  console.log('🆔 [Calendar] Dados do evento criado:', calendarResult)
+                  
+                  // Update reservation with Google Calendar event ID
+                  if (calendarResult.event?.id) {
+                    console.log('💾 [Calendar] Atualizando reserva com ID do evento:', calendarResult.event?.id)
+                    const updateResult = await supabaseClient
+                      .from('reservations')
+                      .update({ google_event_id: calendarResult.event?.id })
+                      .eq('reservation_number', reservationData.reservation_number)
+                    
+                    console.log('💾 [Calendar] Resultado da atualização da reserva:', updateResult)
+                  }
+                } else {
+                  const errorText = await calendarResponse.text()
+                  console.error('❌ [Calendar] Erro ao criar evento no Google Calendar para pagamento parcelado')
+                  console.error('❌ [Calendar] Status:', calendarResponse.status)
+                  console.error('❌ [Calendar] Erro:', errorText)
+                }
+              } catch (calendarError) {
+                console.error('❌ Erro na integração com Google Calendar para pagamento parcelado:', calendarError)
+                // Continue execution - reservation was created successfully
+              }
             }
           }
         }

@@ -21,6 +21,7 @@ import { useBookings } from "@/hooks/useBookings"
 import { useAdmin } from "@/hooks/useAdmin"
 import { useMonthGoogleCalendar, useTodayGoogleCalendar } from "@/hooks/useGoogleCalendar"
 import CreateEventPopup from "@/components/create-event-popup"
+import GoogleEventDetailsPopup from "@/components/google-event-details-popup"
 
 export default function AdminDashboard() {
   const [showCalendar, setShowCalendar] = useState(false)
@@ -38,6 +39,8 @@ export default function AdminDashboard() {
   const [gcalMessage, setGcalMessage] = useState<string>("")
   const [showCreateEventPopup, setShowCreateEventPopup] = useState(false)
   const [selectedDate, setSelectedDate] = useState<string>("")
+  const [showEventDetailsPopup, setShowEventDetailsPopup] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
   const handleConnectGoogle = () => {
     // Redireciona para iniciar o fluxo OAuth
@@ -50,6 +53,11 @@ export default function AdminDashboard() {
     const dateStr = new Date(year, month, day).toISOString().split('T')[0]
     setSelectedDate(dateStr)
     setShowCreateEventPopup(true)
+  }
+
+  const handleEventClick = (event: any) => {
+    setSelectedEvent(event)
+    setShowEventDetailsPopup(true)
   }
 
   const checkGoogleCalendarStatus = async (uid: string) => {
@@ -434,9 +442,14 @@ export default function AdminDashboard() {
                         ))}
                         {/* Eventos do Google Calendar */}
                         {getGoogleEventsForDate(day).map(event => (
-                          <div key={`gcal-${event.id}`} className="text-xs bg-green-100 text-green-800 p-1 rounded truncate" title={`${event.summary} - ${formatGoogleEventTime(event)}`}>
+                          <button
+                            key={`gcal-${event.id}`}
+                            onClick={() => handleEventClick(event)}
+                            className="w-full text-left text-xs bg-green-100 text-green-800 p-1 rounded truncate hover:bg-green-200 transition-colors"
+                            title={`${event.summary} - ${formatGoogleEventTime(event)} (Clique para ver detalhes)`}
+                          >
                             📅 {event.summary}
-                          </div>
+                          </button>
                         ))}
                       </div>
                     </>
@@ -480,12 +493,16 @@ export default function AdminDashboard() {
                 {/* Eventos do Google Calendar */}
                 {todayGoogleEvents && todayGoogleEvents.length > 0 && (
                   todayGoogleEvents.map((event) => (
-                    <div key={`gcal-${event.id}`} className="bg-green-50 p-3 rounded-md border-l-4 border-green-500">
+                    <button
+                      key={`gcal-${event.id}`}
+                      onClick={() => handleEventClick(event)}
+                      className="w-full bg-green-50 p-3 rounded-md border-l-4 border-green-500 hover:bg-green-100 transition-colors text-left"
+                    >
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium text-sm">📅 {event.summary}</p>
                           {event.description && (
-                            <p className="text-xs text-gray-500">{event.description}</p>
+                            <p className="text-xs text-gray-500 truncate">{event.description}</p>
                           )}
                           {event.location && (
                             <p className="text-xs text-gray-500">📍 {event.location}</p>
@@ -497,7 +514,7 @@ export default function AdminDashboard() {
                           </span>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
                 
@@ -635,6 +652,12 @@ export default function AdminDashboard() {
         isOpen={showCreateEventPopup}
         onClose={() => setShowCreateEventPopup(false)}
         selectedDate={selectedDate}
+      />
+      
+      <GoogleEventDetailsPopup
+        isOpen={showEventDetailsPopup}
+        onClose={() => setShowEventDetailsPopup(false)}
+        event={selectedEvent}
       />
     </div>
   )

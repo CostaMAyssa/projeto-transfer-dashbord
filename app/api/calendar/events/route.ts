@@ -1,5 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabaseAdmin'
+import { OAuth2Client } from 'google-auth-library'
+
+function getOAuthClient() {
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Env vars missing: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI')
+  }
+  return new OAuth2Client(clientId, clientSecret, redirectUri)
+}
+
+async function refreshAccessToken(refreshToken: string) {
+  console.log('🔄 [refreshAccessToken] Renovando token expirado...')
+  
+  try {
+    const client = getOAuthClient()
+    client.setCredentials({ refresh_token: refreshToken })
+    
+    const { credentials } = await client.refreshAccessToken()
+    console.log('✅ [refreshAccessToken] Token renovado com sucesso')
+    
+    return {
+      access_token: credentials.access_token,
+      expiry_date: credentials.expiry_date ? new Date(credentials.expiry_date) : null
+    }
+  } catch (err) {
+    console.log('❌ [refreshAccessToken] Erro ao renovar token:', err)
+    throw err
+  }
+}
 
 async function getAccessToken(userId: string | null) {
   console.log('🔍 [getAccessToken] Iniciando busca do token para userId:', userId)
@@ -14,7 +46,7 @@ async function getAccessToken(userId: string | null) {
     
     const { data, error } = await supabaseAdmin
       .from('integrations_google')
-      .select('access_token')
+      .select('access_token, refresh_token, expiry_date')
       .eq('user_id', userId)
       .maybeSingle()
 
@@ -30,6 +62,45 @@ async function getAccessToken(userId: string | null) {
     if (!data) {
       console.log('❌ [getAccessToken] Nenhum dado retornado')
       return undefined
+    }
+
+    // Verificar se o token está expirado
+    const now = new Date()
+    const expiryDate = data.expiry_date ? new Date(data.expiry_date) : null
+    const isExpired = expiryDate && now >= expiryDate
+    
+    console.log('⏰ [getAccessToken] Verificação de expiração:')
+    console.log('  - Data atual:', now.toISOString())
+    console.log('  - Data de expiração:', expiryDate?.toISOString() || 'N/A')
+    console.log('  - Token expirado:', isExpired)
+
+    if (isExpired && data.refresh_token) {
+      console.log('🔄 [getAccessToken] Token expirado, tentando renovar...')
+      
+      try {
+        const refreshedTokens = await refreshAccessToken(data.refresh_token)
+        
+        // Atualizar token no banco de dados
+        const { error: updateError } = await supabaseAdmin
+          .from('integrations_google')
+          .update({
+            access_token: refreshedTokens.access_token,
+            expiry_date: refreshedTokens.expiry_date?.toISOString() || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+        
+        if (updateError) {
+          console.log('❌ [getAccessToken] Erro ao atualizar token renovado:', updateError)
+          throw updateError
+        }
+        
+        console.log('✅ [getAccessToken] Token renovado e salvo com sucesso')
+        return refreshedTokens.access_token
+      } catch (refreshError) {
+        console.log('❌ [getAccessToken] Falha ao renovar token:', refreshError)
+        return undefined
+      }
     }
 
     console.log('✅ [getAccessToken] Token obtido com sucesso')
