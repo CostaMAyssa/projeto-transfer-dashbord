@@ -1,6 +1,27 @@
 import { useState, useEffect, useCallback } from 'react'
-import { flightAwareService, FlightData, FlightAlert, SmartSchedulingResult, PickupTimeOptions } from '../lib/flight-api'
+import { goFlightLabsService, FlightData } from '../lib/goflightlabs-service'
 import { dbHelpers } from '../lib/supabase'
+
+// Interfaces para compatibilidade
+export interface FlightAlert {
+  type: 'delay' | 'cancellation' | 'gate_change' | 'terminal_change'
+  message: string
+  severity: 'low' | 'medium' | 'high'
+  timestamp: string
+}
+
+export interface SmartSchedulingResult {
+  suggestedPickupTime: Date
+  confidence: 'high' | 'medium' | 'low'
+  factors: string[]
+  bufferTime: number
+}
+
+export interface PickupTimeOptions {
+  bufferMinutes?: number
+  trafficFactor?: number
+  isInternational?: boolean
+}
 
 export interface UseFlightDataOptions {
   autoRefresh?: boolean
@@ -87,14 +108,14 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setSmartScheduling(null)
     
     try {
-      const flight = await flightAwareService.getFlightInfo(flightNumber, date)
+      const flight = await goFlightLabsService.getFlightInfo(flightNumber, date)
       
       if (flight) {
         setFlightData(flight)
         setLastSearchParams({ flightNumber, date })
         
         // Verificar alertas automaticamente
-        const flightAlerts = await flightAwareService.checkFlightDivergence(flight)
+        const flightAlerts = await checkFlightDivergence(flight)
         setAlerts(flightAlerts)
         
         // Adicionar aos resultados de busca
@@ -129,14 +150,14 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setError(null)
     
     try {
-      const flight = await flightAwareService.getRealTimeFlightStatus(flightNumber, date)
+      const flight = await goFlightLabsService.getFlightInfo(flightNumber, date)
       
       if (flight) {
         setFlightData(flight)
         setLastSearchParams({ flightNumber, date })
         
         // Verificar alertas automaticamente
-        const flightAlerts = await flightAwareService.checkFlightDivergence(flight)
+        const flightAlerts = await checkFlightDivergence(flight)
         setAlerts(flightAlerts)
         
         return flight
@@ -162,9 +183,40 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     }
 
     try {
-      const flightAlerts = await flightAwareService.checkFlightDivergence(targetFlight)
-      setAlerts(flightAlerts)
-      return flightAlerts
+      const alerts: FlightAlert[] = []
+      
+      // Verificar atrasos
+      if (goFlightLabsService.isFlightDelayed(targetFlight)) {
+        alerts.push({
+          type: 'delay',
+          message: `Voo atrasado em ${targetFlight.departure.delay} minutos`,
+          severity: targetFlight.departure.delay > 60 ? 'high' : 'medium',
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      // Verificar cancelamento
+      if (targetFlight.status.toLowerCase() === 'cancelled') {
+        alerts.push({
+          type: 'cancellation',
+          message: 'Voo cancelado',
+          severity: 'high',
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      // Verificar mudança de portão
+      if (targetFlight.departure.gate && targetFlight.departure.gate !== targetFlight.arrival.gate) {
+        alerts.push({
+          type: 'gate_change',
+          message: `Portão alterado para ${targetFlight.departure.gate}`,
+          severity: 'medium',
+          timestamp: new Date().toISOString()
+        })
+      }
+      
+      setAlerts(alerts)
+      return alerts
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao verificar divergências'
       setError(errorMessage)
@@ -186,11 +238,36 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setError(null)
     
     try {
-      const scheduling = await flightAwareService.calculateSmartScheduling(
-        flightData,
-        serviceType,
-        options
-      )
+      const { bufferMinutes = 30, trafficFactor = 1.2, isInternational = true } = options
+      
+      const referenceTime = serviceType === 'arrival' 
+        ? new Date(flightData.arrival.estimated || flightData.arrival.scheduled)
+        : new Date(flightData.departure.estimated || flightData.departure.scheduled)
+      
+      // Calcular tempo de pickup considerando fatores
+      const baseBuffer = isInternational ? 60 : 30 // minutos
+      const totalBuffer = (baseBuffer + bufferMinutes + flightData.departure.delay) * trafficFactor
+      
+      const suggestedPickupTime = new Date(referenceTime.getTime() - (totalBuffer * 60 * 1000))
+      
+      const factors = [
+        `Buffer base: ${baseBuffer} min`,
+        `Buffer adicional: ${bufferMinutes} min`,
+        `Fator de trânsito: ${trafficFactor}x`,
+        `Atraso do voo: ${flightData.departure.delay} min`
+      ]
+      
+      const confidence: 'high' | 'medium' | 'low' = 
+        flightData.departure.delay === 0 ? 'high' : 
+        flightData.departure.delay < 30 ? 'medium' : 'low'
+      
+      const scheduling: SmartSchedulingResult = {
+        suggestedPickupTime,
+        confidence,
+        factors,
+        bufferTime: totalBuffer
+      }
+      
       setSmartScheduling(scheduling)
       return scheduling
     } catch (err) {
@@ -215,7 +292,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setError(null)
     
     try {
-      const arrivals = await flightAwareService.getAirportArrivals(airport, date)
+      const arrivals = await goFlightLabsService.getAirportSchedules(airport, 'arrival')
       
       // Converter para resultados de busca com confiança
       const results: FlightSearchResult[] = arrivals.map(flight => ({
@@ -241,23 +318,40 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     options?: PickupTimeOptions
   ): Promise<Date> => {
     try {
-      return await flightAwareService.getSuggestedPickupTime(flight, serviceType, options)
+      const { bufferMinutes = 30, trafficFactor = 1.2, isInternational = true } = options || {}
+      
+      const referenceTime = serviceType === 'arrival' 
+        ? new Date(flight.arrival.estimated || flight.arrival.scheduled)
+        : new Date(flight.departure.estimated || flight.departure.scheduled)
+      
+      const baseBuffer = isInternational ? 60 : 30
+      const totalBuffer = (baseBuffer + bufferMinutes + flight.departure.delay) * trafficFactor
+      
+      return new Date(referenceTime.getTime() - (totalBuffer * 60 * 1000))
     } catch (err) {
       console.error('Erro ao calcular horário de pickup:', err)
       // Fallback: retornar horário do voo
-      return serviceType === 'arrival' ? flight.scheduledArrival : flight.scheduledDeparture
+      return serviceType === 'arrival' 
+        ? new Date(flight.arrival.scheduled) 
+        : new Date(flight.departure.scheduled)
     }
   }, [])
 
   // Monitorar voo
   const monitorFlight = useCallback(async (flightNumber: string): Promise<void> => {
     try {
-      await flightAwareService.monitorFlight(flightNumber)
+      // Implementação básica de monitoramento
+      const flight = await goFlightLabsService.getFlightInfo(flightNumber)
+      if (flight) {
+        setFlightData(flight)
+        const alerts = await checkFlightDivergence(flight)
+        setAlerts(alerts)
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao monitorar voo'
       setError(errorMessage)
     }
-  }, [])
+  }, [checkFlightDivergence])
 
   // Limpar dados
   const clearData = useCallback(() => {
@@ -273,24 +367,40 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
   const formatFlightNumber = useCallback((flightNumber: string): string => {
     return flightNumber.toUpperCase().replace(/\s+/g, '')
   }, [])
-
+  
   const isDomesticFlight = useCallback((origin: string, destination: string): boolean => {
-    const brazilianAirports = ['SBGR', 'SBSP', 'SBRJ', 'SBGL', 'SBBR', 'SBCF', 'SBSV', 'SBRF', 'SBFZ', 'SBPA', 'SBCT', 'SBEG', 'SBBE']
+    // Lista de códigos de aeroportos brasileiros (simplificada)
+    const brazilianAirports = ['GRU', 'CGH', 'BSB', 'SDU', 'GIG', 'CNF', 'SSA', 'REC', 'FOR', 'POA', 'CWB', 'FLN']
     return brazilianAirports.includes(origin) && brazilianAirports.includes(destination)
   }, [])
-
-  const getStatusInPortuguese = useCallback((status: FlightData['status']): string => {
-    const statusMap = {
-      'scheduled': 'Programado',
-      'active': 'Em Voo',
-      'landed': 'Pousou',
-      'cancelled': 'Cancelado',
-      'delayed': 'Atrasado'
-    }
-    
-    return statusMap[status] || 'Desconhecido'
+  
+  const getStatusInPortuguese = useCallback((status: string): string => {
+    return goFlightLabsService.getFlightStatusInPortuguese(status)
   }, [])
+  
+  // Auto-refresh usando GoFlightLabs
+  useEffect(() => {
+    if (!autoRefresh || !flightData) return
 
+    const interval = setInterval(async () => {
+      if (flightData.flightNumber) {
+        try {
+          const updated = await goFlightLabsService.getFlightInfo(
+            flightData.flightNumber,
+            new Date().toISOString().split('T')[0]
+          )
+          if (updated) {
+            setFlightData(updated)
+          }
+        } catch (err) {
+          console.error('Erro no auto-refresh:', err)
+        }
+      }
+    }, refreshInterval * 60 * 1000)
+
+    return () => clearInterval(interval)
+  }, [autoRefresh, refreshInterval, flightData])
+  
   return {
     // Estado
     loading,

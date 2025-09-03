@@ -1,31 +1,96 @@
-# Plano de Implementação - API de Voos FlightAware
+# Plano de Implementação - API de Voos GoFlightLabs
 
 ## 📋 Objetivo
-Integrar a API de voos da FlightAware para fornecer horários mais precisos nas reservas de transfer, comparando dados de voos reais com os horários solicitados pelos clientes.
+Integrar a API de voos da GoFlightLabs para fornecer horários mais precisos nas reservas de transfer, comparando dados de voos reais com os horários solicitados pelos clientes.
 
 1- Permitir que o sistema de reservas utilize dados reais de voo para sugerir horários de pickup mais precisos.
 
 2- Comparar horários solicitados pelos clientes com horários reais (programados, estimados e reais de chegada/partida).
 
-## 🔍 Análise da API FlightAware
+## 🔍 Análise da API GoFlightLabs
 
 ### APIs Disponíveis:
-1. **AeroAPI™** - API baseada em consultas (Pull)
-   - Dados em tempo real e históricos (últimas 2 semanas)
-   - Preço: $0,002 por consulta
-   - Ideal para aplicações pequenas/médias
+1. **Real-Time Flights API** - Dados em tempo real
+   - Informações de voos atualmente em progresso
+   - Status de voo com horários programados e reais
+   - Teste gratuito de 7 dias ou até 50 requisições
 
-2. **FlightAware Firehose** - Feed em tempo real (Push)
-   - Dados históricos desde 2009
-   - Ideal para big data e soluções corporativas
+2. **Flight Schedules API** - Horários programados
+   - Dados de chegadas e partidas por aeroporto
+   - Filtros por companhia aérea, número do voo, data
+   - Informações de terminal e portão
+
+3. **Historical Flights API** - Dados históricos
+   - Acesso a dados de voos passados
+   - Análise de padrões e tendências
+
+### Endpoints Principais:
+- `https://app.goflightlabs.com/flights` - Voos em tempo real
+- `https://app.goflightlabs.com/advanced-flights-schedules` - Horários por aeroporto
+- `https://app.goflightlabs.com/flights-schedules` - Programação de voos
+
+### Exemplos de Requisições:
+
+#### 1. Buscar voo específico:
+```
+GET https://app.goflightlabs.com/flights?
+access_key=YOUR_ACCESS_KEY&flight_iata=AA1234
+```
+
+#### 2. Horários de chegada de um aeroporto:
+```
+GET https://app.goflightlabs.com/advanced-flights-schedules?
+access_key=YOUR_ACCESS_KEY&iataCode=JFK&type=arrival&limit=50
+```
+
+#### 3. Horários de partida de um aeroporto:
+```
+GET https://app.goflightlabs.com/advanced-flights-schedules?
+access_key=YOUR_ACCESS_KEY&iataCode=LAX&type=departure&limit=50
+```
+
+### Exemplo de Resposta:
+```json
+{
+  "success": true,
+  "type": "departure",
+  "data": [
+    {
+      "airline_iata": "AA",
+      "airline_icao": "AAL",
+      "flight_iata": "AA1234",
+      "flight_icao": "AAL1234",
+      "flight_number": "1234",
+      "dep_iata": "JFK",
+      "dep_icao": "KJFK",
+      "dep_terminal": "4",
+      "dep_gate": "A12",
+      "dep_time": "2024-03-12 07:30",
+      "dep_time_utc": "2024-03-12 11:30",
+      "dep_estimated": "2024-03-12 07:35",
+      "dep_actual": "2024-03-12 07:33",
+      "arr_iata": "LAX",
+      "arr_icao": "KLAX",
+      "arr_terminal": "6",
+      "arr_gate": "B15",
+      "arr_baggage": "3",
+      "arr_time": "2024-03-12 10:45",
+      "arr_estimated": "2024-03-12 10:50",
+      "arr_actual": null,
+      "flight_status": "active"
+    }
+  ]
+}
+```
 
 ### Dados Relevantes para Transfer:
 - ✅ Posições de voos em tempo real
 - ✅ Status de voos e aeroportos
-- ✅ Horários reais de partida e chegada
+- ✅ Horários reais de partida e chegada (dep_actual, arr_actual)
+- ✅ Horários estimados (dep_estimated, arr_estimated)
 - ✅ Portão e terminal de chegada/partida
-- ✅ Tempos programados vs reais (Block IN/OUT)
-- ✅ Informações meteorológicas do aeroporto
+- ✅ Códigos IATA e ICAO de aeroportos e companhias
+- ✅ Informações de bagagem (arr_baggage)
 
 ## 🏗️ Arquitetura da Solução
 
@@ -59,8 +124,46 @@ ALTER TABLE reservations ADD COLUMN is_flight_monitored BOOLEAN DEFAULT FALSE;
 
 ### 2. Componentes do Sistema
 
-#### A. Serviço de API de Voos (`lib/flight-api.ts`)
+#### A. Serviço de API de Voos (Supabase Edge Function)
 ```typescript
+// Estrutura de resposta da GoFlightLabs API
+interface GoFlightLabsResponse {
+  success: boolean;
+  type: 'departure' | 'arrival';
+  data: FlightDataRaw[];
+}
+
+interface FlightDataRaw {
+  airline_iata: string;
+  airline_icao: string;
+  flight_iata: string;
+  flight_icao: string;
+  flight_number: string;
+  dep_iata: string;
+  dep_icao: string;
+  dep_terminal?: string;
+  dep_gate?: string;
+  dep_time: string; // "2024-03-12 07:30"
+  dep_time_utc: string;
+  dep_estimated?: string;
+  dep_estimated_utc?: string;
+  dep_actual?: string;
+  dep_actual_utc?: string;
+  arr_iata: string;
+  arr_icao: string;
+  arr_terminal?: string;
+  arr_gate?: string;
+  arr_baggage?: string;
+  arr_time: string;
+  arr_time_utc: string;
+  arr_estimated?: string;
+  arr_estimated_utc?: string;
+  arr_actual?: string;
+  arr_actual_utc?: string;
+  flight_status: string;
+}
+
+// Interface padronizada para uso interno
 interface FlightData {
   flightNumber: string;
   airline: string;
@@ -68,19 +171,34 @@ interface FlightData {
   destination: string;
   scheduledDeparture: Date;
   actualDeparture?: Date;
+  estimatedDeparture?: Date;
   scheduledArrival: Date;
   actualArrival?: Date;
   estimatedArrival?: Date;
-  status: 'scheduled' | 'active' | 'landed' | 'cancelled' | 'delayed';
-  gate?: string;
-  terminal?: string;
+  status: string;
+  depGate?: string;
+  depTerminal?: string;
+  arrGate?: string;
+  arrTerminal?: string;
+  arrBaggage?: string;
 }
 
-class FlightAwareService {
-  async getFlightInfo(flightNumber: string, date: string): Promise<FlightData>
-  async getAirportArrivals(airport: string, date: string): Promise<FlightData[]>
-  async monitorFlight(flightNumber: string): Promise<void>
+// Supabase Edge Function para API de Voos
+class GoFlightLabsService {
+  private accessKey: string;
+  private baseUrl = 'https://app.goflightlabs.com';
+
+  constructor() {
+    this.accessKey = Deno.env.get('GOFLIGHTLABS_ACCESS_KEY') || '';
+  }
+
+  async getFlightInfo(flightNumber: string, date?: string): Promise<FlightData | null>
+  async getAirportSchedules(airportCode: string, type: 'departure' | 'arrival', date?: string): Promise<FlightData[]>
+  async searchFlightByNumber(flightIata: string): Promise<FlightData[]>
   async getSuggestedPickupTime(flightData: FlightData, serviceType: 'arrival' | 'departure'): Promise<Date>
+  
+  private transformFlightData(raw: FlightDataRaw): FlightData
+  private makeRequest(endpoint: string, params: Record<string, string>): Promise<GoFlightLabsResponse>
 }
 ```
 
@@ -143,11 +261,101 @@ export const useFlightData = (): UseFlightDataReturn {
 }
 ```
 
-#### C. Componente de Busca de Voo (`components/FlightSearch.tsx`)
+#### C. Implementação da Edge Function (`app/supabase/functions/flight-data/index.ts`)
+```typescript
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
+  try {
+    const { action, flightNumber, airportCode, type, date } = await req.json()
+    const accessKey = Deno.env.get('GOFLIGHTLABS_ACCESS_KEY')
+    
+    if (!accessKey) {
+      throw new Error('GoFlightLabs access key not configured')
+    }
+
+    let url = ''
+    let params = new URLSearchParams({ access_key: accessKey })
+
+    switch (action) {
+      case 'getFlightInfo':
+        url = 'https://app.goflightlabs.com/flights'
+        if (flightNumber) params.append('flight_iata', flightNumber)
+        if (date) params.append('dep_date', date)
+        break
+        
+      case 'getAirportSchedules':
+        url = 'https://app.goflightlabs.com/advanced-flights-schedules'
+        if (airportCode) params.append('iataCode', airportCode)
+        if (type) params.append('type', type) // 'departure' or 'arrival'
+        if (date) params.append('dep_date', date)
+        params.append('limit', '50')
+        break
+        
+      default:
+        throw new Error('Invalid action')
+    }
+
+    const response = await fetch(`${url}?${params.toString()}`)
+    const data = await response.json()
+
+    if (!data.success) {
+      throw new Error('Failed to fetch flight data')
+    }
+
+    // Transform data to standardized format
+    const transformedData = data.data.map(transformFlightData)
+
+    return new Response(
+      JSON.stringify({ success: true, data: transformedData }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    )
+  }
+})
+
+function transformFlightData(raw: any): FlightData {
+  return {
+    flightNumber: raw.flight_iata,
+    airline: raw.airline_iata,
+    origin: raw.dep_iata,
+    destination: raw.arr_iata,
+    scheduledDeparture: new Date(raw.dep_time),
+    actualDeparture: raw.dep_actual ? new Date(raw.dep_actual) : undefined,
+    estimatedDeparture: raw.dep_estimated ? new Date(raw.dep_estimated) : undefined,
+    scheduledArrival: new Date(raw.arr_time),
+    actualArrival: raw.arr_actual ? new Date(raw.arr_actual) : undefined,
+    estimatedArrival: raw.arr_estimated ? new Date(raw.arr_estimated) : undefined,
+    status: raw.flight_status,
+    depGate: raw.dep_gate,
+    depTerminal: raw.dep_terminal,
+    arrGate: raw.arr_gate,
+    arrTerminal: raw.arr_terminal,
+    arrBaggage: raw.arr_baggage
+  }
+}
+```
+
+#### D. Componente de Busca de Voo (`components/FlightSearch.tsx`)
 - Campo de entrada para número do voo
 - Seletor de data
 - Autocomplete com sugestões de voos
 - Exibição de informações do voo selecionado
+- Integração com a Edge Function para busca de dados
 
 ## 🔄 Fluxo de Funcionamento
 
@@ -230,11 +438,12 @@ export const useFlightData = (): UseFlightDataReturn {
 ## 🔧 Implementação Técnica
 
 ### Fase 1: Configuração Básica
-1. ✅ Criar conta na FlightAware
-2. ✅ Obter chaves de API
-3. ✅ Configurar variáveis de ambiente
+1. ✅ Criar conta na GoFlightLabs (https://app.goflightlabs.com/)
+2. ✅ Obter access_key da API
+3. ✅ Configurar variável de ambiente GOFLIGHTLABS_ACCESS_KEY
 4. ✅ Criar tabelas no banco de dados
-5. ✅ Implementar serviço básico de API
+5. ✅ Implementar Edge Function no Supabase
+6. ✅ Configurar CORS e autenticação
 
 ### Fase 2: Interface de Usuário
 1. ✅ Componente de busca de voo
@@ -256,15 +465,21 @@ export const useFlightData = (): UseFlightDataReturn {
 
 ## 💰 Estimativa de Custos
 
-### AeroAPI (Recomendado para início)
-- **Consultas estimadas**: 1000/mês
-- **Custo**: $2,00/mês
-- **Limite gratuito**: Período de teste disponível
+### GoFlightLabs API
+- **Teste gratuito**: 7 dias ou até 50 requisições
+- **Planos pagos**: Consultar site oficial para preços atualizados
+- **Modelo de cobrança**: Por requisição/consulta
 
-### Cenários de Uso:
-- **Baixo volume** (50 reservas/mês): ~$0,50/mês
-- **Médio volume** (200 reservas/mês): ~$2,00/mês
-- **Alto volume** (1000 reservas/mês): ~$10,00/mês
+### Cenários de Uso Estimados:
+- **Baixo volume** (50 reservas/mês): ~100 consultas/mês
+- **Médio volume** (200 reservas/mês): ~400 consultas/mês  
+- **Alto volume** (1000 reservas/mês): ~2000 consultas/mês
+
+### Otimizações de Custo:
+- Cache de dados de voo por 15-30 minutos
+- Busca por aeroporto em vez de voo específico quando possível
+- Monitoramento apenas de voos confirmados
+- Uso de dados históricos para previsões
 
 ## 🎯 Benefícios Esperados
 
@@ -277,14 +492,49 @@ export const useFlightData = (): UseFlightDataReturn {
 ## 🚀 Próximos Passos
 
 1. **Aprovação do plano** ✅
-2. **Configuração da conta FlightAware**
-3. **Implementação do MVP (Fase 1 + 2)**
-4. **Testes com dados reais**
-5. **Deploy e monitoramento**
-6. **Coleta de feedback e melhorias**
+2. **Configuração da conta GoFlightLabs**
+   - Criar conta em https://app.goflightlabs.com/
+   - Obter access_key da API
+   - Testar endpoints com dados de exemplo
+3. **Implementação da Edge Function**
+   - Criar função `flight-data` no Supabase
+   - Configurar variáveis de ambiente
+   - Implementar transformação de dados
+4. **Integração no Frontend**
+   - Atualizar hook `useFlightData`
+   - Implementar componente de busca
+   - Integrar no formulário de reservas
+5. **Testes e Validação**
+   - Testes com voos reais
+   - Validação de horários sugeridos
+   - Testes de performance e cache
+6. **Deploy e Monitoramento**
+   - Deploy da Edge Function
+   - Monitoramento de uso da API
+   - Coleta de feedback dos usuários
+
+### Configuração de Ambiente
+```bash
+# Variáveis de ambiente necessárias
+GOFLIGHTLABS_ACCESS_KEY=your_access_key_here
+
+# Deploy da Edge Function
+supabase functions deploy flight-data
+
+# Teste da função
+curl -X POST 'https://your-project.supabase.co/functions/v1/flight-data' \
+  -H 'Authorization: Bearer YOUR_ANON_KEY' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "action": "getFlightInfo",
+    "flightNumber": "AA1234",
+    "date": "2024-03-15"
+  }'
+```
 
 ---
 
 **Tempo estimado de implementação**: 2-3 semanas
 **Complexidade**: Média
 **ROI esperado**: Alto (melhoria na experiência do cliente)
+**Vantagem da Edge Function**: Reutilização em outros sistemas, melhor performance, segurança das chaves de API
