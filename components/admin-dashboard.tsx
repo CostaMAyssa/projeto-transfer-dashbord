@@ -25,6 +25,7 @@ import {
 } from "lucide-react"
 import { useLanguage } from "@/contexts/language-context"
 import { logout } from "@/hooks/useAdmin"
+import { NotificationsDropdown } from "@/components/notifications-dropdown"
 
 interface AdminDashboardProps {
   children: React.ReactNode
@@ -362,6 +363,9 @@ export default function AdminDashboard({ children, user }: AdminDashboardProps) 
           </div>
 
           <div className="ml-auto flex items-center space-x-4">
+            {/* Notificações */}
+            <NotificationsDropdown />
+            
             <div className="flex items-center relative">
               <div ref={dropdownRef}>
                 <button
