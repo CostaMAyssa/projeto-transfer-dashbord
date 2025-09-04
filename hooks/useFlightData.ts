@@ -84,7 +84,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     const interval = setInterval(async () => {
       if (flightData.flightNumber) {
         try {
-          const updated = await flightAwareService.getFlightInfo(
+          const updated = await goFlightLabsService.getFlightInfo(
             flightData.flightNumber,
             new Date().toISOString().split('T')[0]
           )
@@ -102,13 +102,30 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
 
   // Buscar voo específico
   const searchFlight = useCallback(async (flightNumber: string, date: string): Promise<FlightData | null> => {
+    console.log('🔍 Iniciando busca de voo:', {
+      flightNumber,
+      date,
+      timestamp: new Date().toISOString()
+    })
+    
     setLoading(true)
     setError(null)
     setAlerts([])
     setSmartScheduling(null)
     
     try {
+      console.log('📞 Chamando goFlightLabsService.getFlightInfo...')
       const flight = await goFlightLabsService.getFlightInfo(flightNumber, date)
+      
+      console.log('✅ Resposta recebida do serviço:', {
+        hasFlight: !!flight,
+        flightData: flight ? {
+          flightNumber: flight.flightNumber,
+          status: flight.status,
+          departure: flight.departure?.scheduled,
+          arrival: flight.arrival?.scheduled
+        } : null
+      })
       
       if (flight) {
         setFlightData(flight)
@@ -132,15 +149,27 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         
         return flight
       } else {
+        console.log('⚠️ Voo não encontrado')
         setError('Voo não encontrado')
         return null
       }
     } catch (err) {
+      console.error('❌ Erro detalhado na busca de voo:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Erro desconhecido',
+        stack: err instanceof Error ? err.stack : undefined,
+        name: err instanceof Error ? err.name : undefined,
+        flightNumber,
+        date,
+        timestamp: new Date().toISOString()
+      })
+      
       const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar voo'
       setError(errorMessage)
       return null
     } finally {
       setLoading(false)
+      console.log('🏁 Busca de voo finalizada')
     }
   }, [])
 
@@ -497,23 +526,37 @@ export function useFlightMonitoring() {
       const { data: bookings } = await dbHelpers.getMonitoredBookings()
       
       if (bookings) {
-        const flights = bookings
+        const flights: FlightData[] = bookings
           .filter(booking => booking.flight_data)
           .map(booking => ({
             flightNumber: booking.flight_data!.flight_number,
-            airline: booking.flight_data!.airline_name || '',
-            airlineCode: booking.flight_data!.airline_code,
-            origin: booking.flight_data!.origin_airport,
-            destination: booking.flight_data!.destination_airport,
-            scheduledDeparture: new Date(booking.flight_data!.scheduled_departure),
-            actualDeparture: booking.flight_data!.actual_departure ? new Date(booking.flight_data!.actual_departure) : undefined,
-            scheduledArrival: new Date(booking.flight_data!.scheduled_arrival),
-            actualArrival: booking.flight_data!.actual_arrival ? new Date(booking.flight_data!.actual_arrival) : undefined,
-            estimatedArrival: booking.flight_data!.estimated_arrival ? new Date(booking.flight_data!.estimated_arrival) : undefined,
-            status: booking.flight_data!.flight_status as FlightData['status'],
-            gate: booking.flight_data!.gate,
-            terminal: booking.flight_data!.terminal,
-            aircraftType: booking.flight_data!.aircraft_type
+            airline: {
+              name: booking.flight_data!.airline_name || '',
+              iata: booking.flight_data!.airline_code || '',
+              icao: booking.flight_data!.airline_code || ''
+            },
+            departure: {
+              airport: {
+                name: booking.flight_data!.origin_airport || '',
+                iata: booking.flight_data!.origin_airport || '',
+                icao: booking.flight_data!.origin_airport || ''
+              },
+              scheduled: booking.flight_data!.scheduled_departure,
+              actual: booking.flight_data!.actual_departure,
+              delay: 0
+            },
+            arrival: {
+              airport: {
+                name: booking.flight_data!.destination_airport || '',
+                iata: booking.flight_data!.destination_airport || '',
+                icao: booking.flight_data!.destination_airport || ''
+              },
+              scheduled: booking.flight_data!.scheduled_arrival,
+              actual: booking.flight_data!.actual_arrival,
+              estimated: booking.flight_data!.estimated_arrival,
+              delay: 0
+            },
+            status: booking.flight_data!.flight_status as FlightData['status']
           }))
         
         setMonitoredFlights(flights)
@@ -527,7 +570,7 @@ export function useFlightMonitoring() {
   // Atualizar voos monitorados
   const updateMonitoredFlights = useCallback(async () => {
     try {
-      await flightAwareService.updateMonitoredFlights()
+      // await goFlightLabsService.updateMonitoredFlights() // Método não implementado ainda
       await loadMonitoredFlights() // Recarregar após atualização
     } catch (error) {
       console.error('Erro ao atualizar voos monitorados:', error)

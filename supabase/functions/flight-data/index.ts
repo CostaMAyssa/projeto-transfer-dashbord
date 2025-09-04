@@ -556,8 +556,16 @@ class GoFlightLabsService {
   }
 }
 serve(async (req: Request)=>{
+  console.log('🚀 Edge Function recebeu requisição:', {
+    method: req.method,
+    url: req.url,
+    headers: Object.fromEntries(req.headers.entries()),
+    timestamp: new Date().toISOString()
+  });
+  
   // Handle CORS
   if (req.method === 'OPTIONS') {
+    console.log('✅ Respondendo a requisição OPTIONS (CORS)');
     return new Response('ok', {
       headers: corsHeaders
     });
@@ -566,6 +574,12 @@ serve(async (req: Request)=>{
     const { method, url } = req;
     const urlObj = new URL(url);
     const path = urlObj.pathname;
+    
+    console.log('📋 Detalhes da requisição:', {
+      method,
+      path,
+      searchParams: Object.fromEntries(urlObj.searchParams.entries())
+    });
     // Verificar variáveis de ambiente
     const accessKey = Deno.env.get('GOFLIGHTLABS_ACCESS_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -585,35 +599,77 @@ serve(async (req: Request)=>{
         airportIata = urlObj.searchParams.get('airport');
         scheduleType = urlObj.searchParams.get('type');
         date = urlObj.searchParams.get('date');
+        
+        console.log('📥 Parâmetros GET extraídos:', {
+          flightNumber, airportIata, scheduleType, date
+        });
       } else if (method === 'POST') {
+        console.log('📦 Processando requisição POST...');
         const body = await req.json();
+        console.log('📄 Body da requisição POST:', body);
+        
         flightNumber = body.flight_number;
         airportIata = body.airport;
         scheduleType = body.type;
         date = body.date;
+        
+        console.log('📥 Parâmetros POST extraídos:', {
+          flightNumber, airportIata, scheduleType, date
+        });
       }
       // Buscar informações de um voo específico
       if (flightNumber) {
-        const flightData = await flightService.getFlightInfo(flightNumber, date || undefined);
-        if (!flightData) {
+        console.log('🔍 Buscando informações do voo:', { flightNumber, date });
+        
+        try {
+          const flightData = await flightService.getFlightInfo(flightNumber, date || undefined);
+          
+          console.log('✅ Dados do voo obtidos:', {
+            hasData: !!flightData,
+            flightNumber: flightData?.flightNumber,
+            status: flightData?.status
+          });
+          
+          if (!flightData) {
+            console.log('⚠️ Voo não encontrado, retornando 404');
+            return new Response(JSON.stringify({
+              error: 'Voo não encontrado'
+            }), {
+              status: 404,
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json'
+              }
+            });
+          }
+          
+          console.log('🎉 Retornando dados do voo com sucesso');
           return new Response(JSON.stringify({
-            error: 'Voo não encontrado'
+            data: flightData
           }), {
-            status: 404,
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'application/json'
+            }
+          });
+        } catch (flightError) {
+          console.error('❌ Erro ao buscar voo:', {
+            error: flightError,
+            message: flightError instanceof Error ? flightError.message : String(flightError),
+            stack: flightError instanceof Error ? flightError.stack : undefined
+          });
+          
+          return new Response(JSON.stringify({
+            error: 'Erro ao buscar informações do voo',
+            message: flightError instanceof Error ? flightError.message : String(flightError)
+          }), {
+            status: 500,
             headers: {
               ...corsHeaders,
               'Content-Type': 'application/json'
             }
           });
         }
-        return new Response(JSON.stringify({
-          data: flightData
-        }), {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json'
-          }
-        });
       }
       // Buscar horários de um aeroporto
       if (airportIata) {

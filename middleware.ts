@@ -26,8 +26,8 @@ export function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  // Ignorar rotas do sistema de reservas e do painel administrativo
-  if (pathname === "/" || pathname.startsWith("/booking") || pathname.startsWith("/admin")) {
+  // Ignorar rotas do painel administrativo
+  if (pathname === "/" || pathname.startsWith("/admin")) {
     return NextResponse.next({
       request: {
         headers: requestHeaders,

@@ -93,7 +93,7 @@ serve(async (req: Request) => {
             quantity: 1,
           }],
           mode: 'payment',
-          success_url: `${req.headers.get('origin') || 'https://yourdomain.com'}/booking/confirmation?session_id={CHECKOUT_SESSION_ID}`,
+          success_url: `${req.headers.get('origin') || 'https://yourdomain.com'}/admin/quotes?payment=success&session_id={CHECKOUT_SESSION_ID}`,
           cancel_url: `${req.headers.get('origin') || 'https://yourdomain.com'}/admin/bookings`,
           metadata: {
             quoteId: quoteId,

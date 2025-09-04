@@ -36,7 +36,7 @@ export default function BookingWidget() {
     e.preventDefault()
     // In a real app, you would store this data in a state management solution
     // or pass it via URL parameters
-    router.push("/booking")
+    router.push("/admin/quotes/new")
   }
 
   return (

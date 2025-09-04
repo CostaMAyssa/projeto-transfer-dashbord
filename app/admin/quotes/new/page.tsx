@@ -11,6 +11,7 @@ import { createQuote } from "@/hooks/useQuotes"
 import { AddressAutocomplete } from "@/components/AddressAutocomplete"
 import { detectZone } from "@/lib/zone-pricing"
 import { useAddressAutocomplete } from "@/hooks/useAddressAutocomplete"
+import { useFlightData } from "@/hooks/useFlightData"
 import { redirectAfterSave } from "./fix-redirect"
 import { supabase } from '@/lib/supabase'
 import { 
@@ -25,7 +26,10 @@ import {
   Clock,
   DollarSign,
   Plus,
-  Minus
+  Minus,
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from "lucide-react"
 
 export default function NewQuotePage() {
@@ -89,6 +93,9 @@ export default function NewQuotePage() {
   const [isSearchingClient, setIsSearchingClient] = useState(false)
   const [selectedClient, setSelectedClient] = useState<any>(null)
   
+  // Hook para buscar dados de voo
+  const { flightData, loading: isLoadingFlight, error: flightError, searchFlight } = useFlightData()
+  
   // Componente para exibir erro de campo
   const FieldError = ({ fieldName }: { fieldName: string }) => {
     if (!validationErrors[fieldName]) return null
@@ -147,6 +154,27 @@ export default function NewQuotePage() {
     setClientSearchResults([])
   }
   
+  // Função para buscar informações de voo e ajustar data/hora automaticamente
+  const handleFlightSearch = async () => {
+    if (!formData.airline || !formData.flight_number) {
+      return
+    }
+    
+    try {
+      const flightNumber = `${formData.airline}${formData.flight_number}`
+      const today = new Date().toISOString().split('T')[0]
+      const flightInfo = await searchFlight(flightNumber, today)
+      
+      if (flightInfo) {
+        // Apenas exibir as informações do voo encontrado
+        console.log('Informações de voo encontradas:', flightInfo)
+        // Os dados do voo serão exibidos através dos indicadores visuais já implementados
+      }
+    } catch (error) {
+      console.error('Erro ao buscar informações de voo:', error)
+    }
+  }
+  
   // Função para limpar seleção de cliente
   const clearClientSelection = () => {
     setSelectedClient(null)
@@ -159,6 +187,18 @@ export default function NewQuotePage() {
     }))
     setClientSearchResults([])
   }
+  
+  // useEffect para buscar informações de voo automaticamente
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.airline && formData.flight_number && formData.airline.length >= 2 && formData.flight_number.length >= 3) {
+        handleFlightSearch()
+      }
+    }, 1000) // Debounce de 1 segundo
+    
+    return () => clearTimeout(timer)
+  }, [formData.airline, formData.flight_number])
+  
   const { getPrice, loading: pricingLoading } = useZonePricing()
   const { data: availableExtras, isLoading: extrasLoading } = useExtras()
 
@@ -1220,26 +1260,64 @@ export default function NewQuotePage() {
                           <label className="block text-sm font-medium text-text-dark mb-2">
                             Companhia Aérea
                           </label>
-                          <input
-                            type="text"
-                            className="input-standard w-full"
-                            value={formData.airline}
-                            onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
-                            placeholder="Ex: LATAM, GOL, Azul..."
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="input-standard w-full pr-10"
+                              value={formData.airline}
+                              onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
+                              placeholder="Ex: LATAM, GOL, Azul..."
+                            />
+                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
+                            )}
+                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                            )}
+                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                            )}
+                          </div>
                         </div>
                         
                         <div>
                           <label className="block text-sm font-medium text-text-dark mb-2">
                             Número do Voo
                           </label>
-                          <input
-                            type="text"
-                            className="input-standard w-full"
-                            value={formData.flight_number}
-                            onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
-                            placeholder="Ex: LA3090, G31234..."
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="input-standard w-full pr-10"
+                              value={formData.flight_number}
+                              onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
+                              placeholder="Ex: LA3090, G31234..."
+                            />
+                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
+                            )}
+                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                            )}
+                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                          {flightData && !isLoadingFlight && (
+                            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                              ✈️ Voo encontrado: {flightData.airline.name} - Status: {flightData.status}
+                              {flightData.departure.scheduled && (
+                                <div>Partida: {new Date(flightData.departure.scheduled).toLocaleString('pt-BR')}</div>
+                              )}
+                              {flightData.arrival.scheduled && (
+                                <div>Chegada: {new Date(flightData.arrival.scheduled).toLocaleString('pt-BR')}</div>
+                              )}
+                            </div>
+                          )}
+                          {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                              ❌ Erro ao buscar voo: {flightError}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
@@ -1347,26 +1425,64 @@ export default function NewQuotePage() {
                           <label className="block text-sm font-medium text-text-dark mb-2">
                             Companhia Aérea
                           </label>
-                          <input
-                            type="text"
-                            className="input-standard w-full"
-                            value={formData.airline}
-                            onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
-                            placeholder="Ex: LATAM, GOL, Azul..."
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="input-standard w-full pr-10"
+                              value={formData.airline}
+                              onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
+                              placeholder="Ex: LATAM, GOL, Azul..."
+                            />
+                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
+                            )}
+                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                            )}
+                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                            )}
+                          </div>
                         </div>
                         
                         <div>
                           <label className="block text-sm font-medium text-text-dark mb-2">
                             Número do Voo
                           </label>
-                          <input
-                            type="text"
-                            className="input-standard w-full"
-                            value={formData.flight_number}
-                            onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
-                            placeholder="Ex: LA3090, G31234..."
-                          />
+                          <div className="relative">
+                            <input
+                              type="text"
+                              className="input-standard w-full pr-10"
+                              value={formData.flight_number}
+                              onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
+                              placeholder="Ex: LA3090, G31234..."
+                            />
+                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
+                            )}
+                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
+                            )}
+                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                              <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
+                            )}
+                          </div>
+                          {flightData && !isLoadingFlight && (
+                            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                              ✈️ Voo encontrado: {flightData.airline.name} - Status: {flightData.status}
+                              {flightData.departure.scheduled && (
+                                <div>Partida: {new Date(flightData.departure.scheduled).toLocaleString('pt-BR')}</div>
+                              )}
+                              {flightData.arrival.scheduled && (
+                                <div>Chegada: {new Date(flightData.arrival.scheduled).toLocaleString('pt-BR')}</div>
+                              )}
+                            </div>
+                          )}
+                          {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                              ❌ Erro ao buscar voo: {flightError}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

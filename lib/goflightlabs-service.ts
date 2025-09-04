@@ -75,25 +75,40 @@ export class GoFlightLabsService {
    */
   async getFlightInfo(flightNumber: string, date?: string): Promise<FlightData | null> {
     try {
-      const params = new URLSearchParams({
-        flight: flightNumber
-      })
-      
-      if (date) {
-        params.append('date', date)
+      const requestBody = {
+        flight_number: flightNumber,
+        date: date || new Date().toISOString().split('T')[0]
       }
 
+      console.log('🚀 Enviando requisição para flight-data:', {
+        requestBody,
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        timestamp: new Date().toISOString()
+      })
+
       const { data, error } = await this.supabase.functions.invoke('flight-data', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ params: Object.fromEntries(params) })
+        body: requestBody
+      })
+
+      console.log('📡 Resposta completa da Edge Function:', {
+        data,
+        error,
+        hasData: !!data,
+        hasError: !!error,
+        errorType: error?.constructor?.name,
+        timestamp: new Date().toISOString()
       })
 
       if (error) {
-        console.error('Erro ao buscar informações do voo:', error)
-        throw new Error(error.message || 'Erro ao buscar informações do voo')
+        console.error('❌ Erro detalhado ao buscar informações do voo:', {
+          error,
+          message: error.message,
+          stack: error.stack,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
+        throw new Error(`Edge Function Error: ${error.message || 'Erro ao buscar informações do voo'}`)
       }
 
       return data?.data || null
