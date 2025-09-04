@@ -6,6 +6,8 @@ import { Check, ChevronRight, User, Package, ArrowLeft, Minus, Plus } from "luci
 import { usePricingRules } from "@/hooks/usePricingRules"
 import { useExtras } from "@/hooks/useExtras"
 import { useVehicles } from "@/hooks/useVehicles"
+import FlightSearch from "@/components/FlightSearch"
+import type { FlightData } from "@/lib/goflightlabs-service"
 
 interface ExtraItem {
   id: string
@@ -37,6 +39,7 @@ export default function BookingPage() {
     selectedVehicle: null as VehicleType | null,
     extras: [] as ExtraItem[],
     flightNumber: "",
+    flightData: null as FlightData | null,
   })
 
   // Adicionar função para buscar preços dinâmicos  
@@ -119,8 +122,12 @@ export default function BookingPage() {
     return vehiclePrice + calculateExtrasTotal()
   }
 
-  const handleFlightNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setBookingData({ ...bookingData, flightNumber: e.target.value })
+  const handleFlightNumberChange = (flightNumber: string, flightData?: FlightData) => {
+    setBookingData({ 
+      ...bookingData, 
+      flightNumber,
+      flightData: flightData || null
+    })
   }
 
   if (pricingLoading || extrasLoading || vehiclesLoading) {
@@ -416,13 +423,13 @@ export default function BookingPage() {
 
             {/* Flight/Train Number */}
             <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Flight/train number</label>
-              <input
-                type="text"
-                placeholder="Example : LH83822"
-                className="w-full p-3 border rounded-md"
+              <label className="block text-sm font-medium mb-2">Número do Voo/Trem</label>
+              <FlightSearch
                 value={bookingData.flightNumber}
                 onChange={handleFlightNumberChange}
+                date={bookingData.date}
+                placeholder="Ex: AA100, G31610, LA3090"
+                className="w-full"
               />
             </div>
 
