@@ -631,11 +631,13 @@ serve(async (req: Request)=>{
           });
           
           if (!flightData) {
-            console.log('⚠️ Voo não encontrado, retornando 404');
+            console.log('⚠️ Voo não encontrado, retornando 200 com success: false');
             return new Response(JSON.stringify({
+              success: false,
+              data: null,
               error: 'Voo não encontrado'
             }), {
-              status: 404,
+              status: 200,
               headers: {
                 ...corsHeaders,
                 'Content-Type': 'application/json'

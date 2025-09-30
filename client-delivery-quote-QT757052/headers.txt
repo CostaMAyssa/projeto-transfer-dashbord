@@ -1,0 +1,8 @@
+HTTP/2 200 
+cache-control: no-store, must-revalidate
+content-type: text/html; charset=utf-8
+date: Mon, 08 Sep 2025 15:19:47 GMT
+link: </_next/static/media/54d279905dfc6637-s.p.woff2>; rel=preload; as="font"; crossorigin=""; type="font/woff2", </_next/static/media/9c18eba18d4baf22-s.p.woff2>; rel=preload; as="font"; crossorigin=""; type="font/woff2"
+vary: RSC, Next-Router-State-Tree, Next-Router-Prefetch, Accept-Encoding
+x-powered-by: Next.js
+

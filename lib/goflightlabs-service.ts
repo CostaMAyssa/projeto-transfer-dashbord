@@ -99,15 +99,23 @@ export class GoFlightLabsService {
         timestamp: new Date().toISOString()
       })
 
+      // Se há erro, verificar se é 404 (voo não encontrado)
       if (error) {
-        console.error('❌ Erro detalhado ao buscar informações do voo:', {
+        console.log('⚠️ Erro na Edge Function:', {
           error,
           message: error.message,
-          stack: error.stack,
           details: error.details,
-          hint: error.hint,
           code: error.code
         })
+        
+        // Se é erro 404, significa que o voo não foi encontrado
+        // Isso não é um erro crítico, apenas retorna null
+        if (error.message?.includes('404') || error.details?.includes('Voo não encontrado')) {
+          console.log('ℹ️ Voo não encontrado na API externa')
+          return null
+        }
+        
+        // Para outros erros, lança exceção
         throw new Error(`Edge Function Error: ${error.message || 'Erro ao buscar informações do voo'}`)
       }
 
