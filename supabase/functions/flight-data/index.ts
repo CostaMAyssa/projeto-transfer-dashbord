@@ -39,14 +39,24 @@ class GoFlightLabsService {
     Object.entries(params).forEach(([key, value])=>{
       url.searchParams.append(key, String(value));
     });
+    
     console.log(`Fazendo requisição para: ${url.toString()}`);
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
+    
+    try {
+      const response = await fetch(url.toString());
+      
+      if (!response.ok) {
+        console.error(`❌ Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
+        throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
+      }
+      
+      const data = await response.json() as FlightApiResponse;
+      console.log(`✅ Resposta da API (${endpoint}):`, JSON.stringify(data, null, 2));
+      return data;
+    } catch (error) {
+      console.error(`❌ Erro na requisição para ${endpoint}:`, error);
+      throw error;
     }
-    const data = await response.json() as FlightApiResponse;
-    console.log(`Resposta da API (${endpoint}):`, JSON.stringify(data, null, 2));
-    return data;
   }
   transformFlightData(rawData: any): any {
     console.log('Dados brutos recebidos:', JSON.stringify(rawData, null, 2));
@@ -318,40 +328,38 @@ class GoFlightLabsService {
     return 'scheduled';
   }
 
-  // Função para extrair apenas o número do voo, removendo o código da companhia
+  // Função corrigida para extrair código da companhia + número do voo
   extractFlightNumber(fullFlightNumber: string): string {
-    // Lista expandida de códigos de companhias aéreas tradicionais
+    // Lista de códigos de companhias aéreas
     const airlineCodes = [
-      // Brasileiras
       'LATAM', 'GOL', 'AZUL', 'TAM', 'JJ', 'G3', 'AD', 'LA',
-      // Americanas
       'AA', 'DL', 'UA', 'WN', 'B6', 'F9', 'NK', 'AS', 'HA',
-      // Europeias
       'BA', 'LH', 'AF', 'KL', 'LX', 'OS', 'SN', 'TP', 'FR', 'U2', 'VY', 'EW', '4U', 'DE', 'AB', 'X3', 'W6', 'U6',
-      // Asiáticas
       'NH', 'JL', 'KE', 'OZ', 'SQ', 'TG', 'MH', 'CX', 'CI', 'BR', 'GA', '9W', 'AI', 'SG', 'PR', '5J', 'Z2',
-      // Outras
       'S7', 'SU', 'FV', 'DP', 'F7', 'H2', 'H9', 'PC', 'TK', 'MS', 'QR', 'EK', 'EY', 'SV', 'GF', 'WY', 'RJ', 'KU', 'FZ'
     ];
     
     let cleanNumber = fullFlightNumber;
+    let airlineCode = '';
     
-    // Remove códigos de companhias aéreas do início
+    // Encontrar e extrair o código da companhia
     for (const code of airlineCodes) {
       if (cleanNumber.toUpperCase().startsWith(code)) {
+        airlineCode = code;
         cleanNumber = cleanNumber.substring(code.length);
         break;
       }
     }
     
-    // Se ainda contém letras, tenta extrair apenas números
+    // Extrair apenas os números do restante
     const numberMatch = cleanNumber.match(/\d+/);
-    if (numberMatch) {
-      cleanNumber = numberMatch[0];
-    }
+    const flightNumber = numberMatch ? numberMatch[0] : cleanNumber;
     
-    console.log(`Número do voo original: ${fullFlightNumber} -> Limpo: ${cleanNumber}`);
-    return cleanNumber;
+    // Retornar no formato correto: código + número (ex: LA3359)
+    const result = airlineCode ? `${airlineCode}${flightNumber}` : flightNumber;
+    
+    console.log(`Número do voo original: ${fullFlightNumber} -> Processado: ${result}`);
+    return result;
   }
 
   async getFlightInfo(flightNumber: string, date?: string): Promise<any> {
