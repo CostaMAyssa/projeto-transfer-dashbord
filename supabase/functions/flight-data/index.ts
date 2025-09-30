@@ -47,7 +47,9 @@ class GoFlightLabsService {
       
       if (!response.ok) {
         console.error(`❌ Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
-        throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({}));
+        console.error(`❌ Detalhes do erro:`, errorData);
+        throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}. Se o problema persistir, entre em contato: hello@goflightlabs.com ou considere usar AviationStack API.`);
       }
       
       const data = await response.json() as FlightApiResponse;
@@ -328,43 +330,119 @@ class GoFlightLabsService {
     return 'scheduled';
   }
 
-  // Função corrigida para extrair código da companhia + número do voo
+  // Mapeamento dinâmico de prefixos para códigos IATA
   extractFlightNumber(fullFlightNumber: string): string {
-    // Lista de códigos de companhias aéreas
-    const airlineCodes = [
-      'LATAM', 'GOL', 'AZUL', 'TAM', 'JJ', 'G3', 'AD', 'LA',
-      'AA', 'DL', 'UA', 'WN', 'B6', 'F9', 'NK', 'AS', 'HA',
-      'BA', 'LH', 'AF', 'KL', 'LX', 'OS', 'SN', 'TP', 'FR', 'U2', 'VY', 'EW', '4U', 'DE', 'AB', 'X3', 'W6', 'U6',
-      'NH', 'JL', 'KE', 'OZ', 'SQ', 'TG', 'MH', 'CX', 'CI', 'BR', 'GA', '9W', 'AI', 'SG', 'PR', '5J', 'Z2',
-      'S7', 'SU', 'FV', 'DP', 'F7', 'H2', 'H9', 'PC', 'TK', 'MS', 'QR', 'EK', 'EY', 'SV', 'GF', 'WY', 'RJ', 'KU', 'FZ'
-    ];
+    const AIRLINE_MAPPING: Record<string, string> = {
+      // Brasileiras
+      'LATAM': 'LA',
+      'GOL': 'G3', 
+      'AZUL': 'AD',
+      'TAM': 'JJ',
+      
+      // Americanas
+      'AMERICAN': 'AA',
+      'AMERICAN AIRLINES': 'AA',
+      'DELTA': 'DL',
+      'DELTA AIRLINES': 'DL',
+      'UNITED': 'UA',
+      'UNITED AIRLINES': 'UA',
+      'SOUTHWEST': 'WN',
+      'JETBLUE': 'B6',
+      'FRONTIER': 'F9',
+      'SPIRIT': 'NK',
+      'ALASKA': 'AS',
+      'HAWAIIAN': 'HA',
+      
+      // Europeias
+      'BRITISH AIRWAYS': 'BA',
+      'LUFTHANSA': 'LH',
+      'AIR FRANCE': 'AF',
+      'KLM': 'KL',
+      'SWISS': 'LX',
+      'AUSTRIAN': 'OS',
+      'BRUSSELS': 'SN',
+      'TAP': 'TP',
+      'RYANAIR': 'FR',
+      'EASYJET': 'U2',
+      'VUELING': 'VY',
+      'EUROWINGS': 'EW',
+      
+      // Asiáticas
+      'JAPAN AIRLINES': 'NH',
+      'JAL': 'NH',
+      'KOREAN AIR': 'KE',
+      'ASIANA': 'OZ',
+      'SINGAPORE': 'SQ',
+      'THAI': 'TG',
+      'MALAYSIA': 'MH',
+      'CATHAY PACIFIC': 'CX',
+      'CHINA AIRLINES': 'CI',
+      'VARIG': 'BR',
+      'GARUDA': 'GA',
+      'JET AIRWAYS': '9W',
+      'AIR INDIA': 'AI',
+      'SINGAPORE AIRLINES': 'SQ',
+      'PHILIPPINE': 'PR',
+      'CEBU PACIFIC': '5J',
+      
+      // Códigos IATA diretos
+      'LA': 'LA', 'G3': 'G3', 'AD': 'AD', 'JJ': 'JJ',
+      'AA': 'AA', 'DL': 'DL', 'UA': 'UA', 'WN': 'WN',
+      'B6': 'B6', 'F9': 'F9', 'NK': 'NK', 'AS': 'AS', 'HA': 'HA',
+      'BA': 'BA', 'LH': 'LH', 'AF': 'AF', 'KL': 'KL', 'LX': 'LX',
+      'OS': 'OS', 'SN': 'SN', 'TP': 'TP', 'FR': 'FR', 'U2': 'U2',
+      'VY': 'VY', 'EW': 'EW', 'NH': 'NH', 'KE': 'KE', 'OZ': 'OZ',
+      'SQ': 'SQ', 'TG': 'TG', 'MH': 'MH', 'CX': 'CX', 'CI': 'CI',
+      'BR': 'BR', 'GA': 'GA', '9W': '9W', 'AI': 'AI', 'PR': 'PR',
+      '5J': '5J', 'S7': 'S7', 'SU': 'SU', 'FV': 'FV', 'DP': 'DP',
+      'F7': 'F7', 'H2': 'H2', 'H9': 'H9', 'PC': 'PC', 'TK': 'TK',
+      'MS': 'MS', 'QR': 'QR', 'EK': 'EK', 'EY': 'EY', 'SV': 'SV',
+      'GF': 'GF', 'WY': 'WY', 'RJ': 'RJ', 'KU': 'KU', 'FZ': 'FZ'
+    };
     
-    let cleanNumber = fullFlightNumber;
-    let airlineCode = '';
+    const original = fullFlightNumber.toUpperCase().trim();
+    console.log(`🔍 Processando voo original: "${original}"`);
     
-    // Encontrar e extrair o código da companhia
-    for (const code of airlineCodes) {
-      if (cleanNumber.toUpperCase().startsWith(code)) {
-        airlineCode = code;
-        cleanNumber = cleanNumber.substring(code.length);
-        break;
+    // Se já está no formato correto (ex: LA3359, G31900)
+    if (/^[A-Z]{2}\d+$/.test(original)) {
+      console.log(`✅ Já no formato correto: ${original}`);
+      return original;
+    }
+    
+    // Tentar encontrar prefixo conhecido
+    for (const [prefix, iataCode] of Object.entries(AIRLINE_MAPPING)) {
+      if (original.startsWith(prefix)) {
+        const remaining = original.substring(prefix.length);
+        const numberMatch = remaining.match(/\d+/);
+        const number = numberMatch ? numberMatch[0] : remaining;
+        const result = `${iataCode}${number}`;
+        
+        console.log(`✅ Prefixo encontrado: "${prefix}" -> "${iataCode}" + "${number}" = "${result}"`);
+        return result;
       }
     }
     
-    // Extrair apenas os números do restante
-    const numberMatch = cleanNumber.match(/\d+/);
-    const flightNumber = numberMatch ? numberMatch[0] : cleanNumber;
+    // Se não encontrou prefixo conhecido, tentar extrair código IATA do início
+    const iataMatch = original.match(/^([A-Z]{2,3})/);
+    if (iataMatch) {
+      const potentialIata = iataMatch[1];
+      const remaining = original.substring(potentialIata.length);
+      const numberMatch = remaining.match(/\d+/);
+      const number = numberMatch ? numberMatch[0] : remaining;
+      const result = `${potentialIata}${number}`;
+      
+      console.log(`⚠️ Prefixo não mapeado, usando original: "${potentialIata}" + "${number}" = "${result}"`);
+      return result;
+    }
     
-    // Retornar no formato correto: código + número (ex: LA3359)
-    const result = airlineCode ? `${airlineCode}${flightNumber}` : flightNumber;
-    
-    console.log(`Número do voo original: ${fullFlightNumber} -> Processado: ${result}`);
-    return result;
+    // Fallback: usar como está
+    console.log(`⚠️ Não foi possível processar, mantendo original: "${original}"`);
+    return original;
   }
 
   async getFlightInfo(flightNumber: string, date?: string): Promise<any> {
     try {
-      // Extrair apenas o número do voo, removendo o código da companhia
+      // Processar o número do voo com mapeamento dinâmico
       const cleanFlightNumber = this.extractFlightNumber(flightNumber);
       const params: any = { flight_number: cleanFlightNumber };
       if (date) params.date = date;
@@ -379,6 +457,7 @@ class GoFlightLabsService {
       if (response?.data?.error || (response?.data && typeof response.data === 'string' && response.data.includes('Nenhum dado foi encontrado'))) {
         console.warn('⚠ Voo não encontrado, retornando 200 com sucesso: false');
         console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+        console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
         return null; // vai gerar o 404 "Voo não encontrado"
       }
 
@@ -389,6 +468,7 @@ class GoFlightLabsService {
             response.data.includes('tente novamente')) {
           console.warn('⚠ Voo não encontrado na data especificada');
           console.warn('Resposta da API (flight):', JSON.stringify(response, null, 2));
+          console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
           return null;
         }
       }
