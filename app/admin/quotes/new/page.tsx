@@ -162,8 +162,17 @@ export default function NewQuotePage() {
     
     try {
       const flightNumber = `${formData.airline}${formData.flight_number}`
-      const today = new Date().toISOString().split('T')[0]
-      const flightInfo = await searchFlight(flightNumber, today)
+      // Usar a data do formulário em vez da data atual
+      const searchDate = formData.pickup_date || new Date().toISOString().split('T')[0]
+      
+      console.log('🔍 Buscando informações do voo:', {
+        flightNumber,
+        searchDate,
+        formDataPickupDate: formData.pickup_date,
+        timestamp: new Date().toISOString()
+      })
+      
+      const flightInfo = await searchFlight(flightNumber, searchDate)
       
       if (flightInfo) {
         // Apenas exibir as informações do voo encontrado

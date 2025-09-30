@@ -150,7 +150,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         return flight
       } else {
         console.log('⚠️ Voo não encontrado')
-        setError('Voo não encontrado')
+        setError(`Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`)
         return null
       }
     } catch (err) {

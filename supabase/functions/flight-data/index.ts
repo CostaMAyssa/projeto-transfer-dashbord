@@ -374,6 +374,17 @@ class GoFlightLabsService {
         return null; // vai gerar o 404 "Voo não encontrado"
       }
 
+      // Verificar se a resposta indica que não há voo na data especificada
+      if (response?.success === false && response?.data && typeof response.data === 'string') {
+        if (response.data.includes('Nenhum dado foi encontrado') || 
+            response.data.includes('verifique o número do voo') ||
+            response.data.includes('tente novamente')) {
+          console.warn('⚠ Voo não encontrado na data especificada');
+          console.warn('Resposta da API (flight):', JSON.stringify(response, null, 2));
+          return null;
+        }
+      }
+
       // garantir que veio algo
       if (!response?.success || !response.data) {
         console.warn('Nenhum registro válido retornado');
