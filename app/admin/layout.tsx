@@ -21,6 +21,12 @@ export default function AdminLayout({
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.push("/admin/login")
+    }
+  }, [user, isLoading, router])
+
   // Páginas que não precisam de autenticação
   const publicPages = ["/admin/login", "/admin/reset-password", "/admin/update-password"]
   const isPublicPage = publicPages.includes(pathname)
@@ -44,9 +50,8 @@ export default function AdminLayout({
     )
   }
 
-  // Se não há usuário autenticado, redirecionar para login
+  // Se não há usuário autenticado, mostrar loading
   if (!user) {
-    router.push("/admin/login")
     return (
       <LanguageProvider>
         <div className="min-h-screen bg-background-light flex items-center justify-center">

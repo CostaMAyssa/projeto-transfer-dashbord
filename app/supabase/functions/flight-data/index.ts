@@ -317,9 +317,36 @@ class GoFlightLabsService {
     
     return 'scheduled';
   }
+  // Função para extrair apenas o número do voo, removendo o código da companhia
+  extractFlightNumber(fullFlightNumber: string): string {
+    // Remove códigos de companhias aéreas comuns (LATAM, GOL, AZUL, etc.)
+    const airlineCodes = ['LATAM', 'GOL', 'AZUL', 'TAM', 'JJ', 'G3', 'AD', 'LA', 'CM', 'AV', 'IB', 'AA', 'DL', 'UA', 'BA', 'LH', 'AF', 'KL', 'LX', 'OS', 'SN', 'TP', 'FR', 'U2', 'VY', 'EW', '4U', 'DE', 'AB', 'X3', 'W6', 'U6', 'S7', 'SU', 'FV', 'DP', 'F7', 'H2', 'H9', 'PC', 'TK', 'MS', 'QR', 'EK', 'EY', 'SV', 'GF', 'WY', 'RJ', 'KU', 'FZ', 'EK', 'EY', 'SV', 'GF', 'WY', 'RJ', 'KU', 'FZ'];
+    
+    let cleanNumber = fullFlightNumber;
+    
+    // Remove códigos de companhias aéreas do início
+    for (const code of airlineCodes) {
+      if (cleanNumber.toUpperCase().startsWith(code)) {
+        cleanNumber = cleanNumber.substring(code.length);
+        break;
+      }
+    }
+    
+    // Se ainda contém letras, tenta extrair apenas números
+    const numberMatch = cleanNumber.match(/\d+/);
+    if (numberMatch) {
+      cleanNumber = numberMatch[0];
+    }
+    
+    console.log(`Número do voo original: ${fullFlightNumber} -> Limpo: ${cleanNumber}`);
+    return cleanNumber;
+  }
+
   async getFlightInfo(flightNumber: string, date?: string): Promise<any> {
     try {
-      const params: any = { flight_number: flightNumber };
+      // Extrair apenas o número do voo, removendo o código da companhia
+      const cleanFlightNumber = this.extractFlightNumber(flightNumber);
+      const params: any = { flight_number: cleanFlightNumber };
       if (date) params.date = date;
 
       const endpoint = 'flight'; // sempre usar o singular
@@ -329,14 +356,16 @@ class GoFlightLabsService {
       console.log('Resposta da API (/flight):', JSON.stringify(response, null, 2));
 
       // caso a API retorne erro sem voo
-      if (response?.data?.error) {
-        console.warn('Sem voos para a data solicitada:', response.data);
+      if (response?.data?.error || (response?.data && typeof response.data === 'string' && response.data.includes('Nenhum dado foi encontrado'))) {
+        console.warn('⚠ Voo não encontrado, retornando 200 com sucesso: false');
+        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
         return null; // vai gerar o 404 "Voo não encontrado"
       }
 
       // garantir que veio algo
       if (!response?.success || !response.data) {
         console.warn('Nenhum registro válido retornado');
+        console.warn('Resposta da API (flight):', JSON.stringify(response, null, 2));
         return null;
       }
 
