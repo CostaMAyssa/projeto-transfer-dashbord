@@ -169,14 +169,14 @@ class GoFlightLabsService {
             actual: ''
           },
           airline: {
-            name: 'Unknown Airline',
-            iata: 'UNK',
-            icao: 'UNKN'
+            name: apiResponse.AIRLINE || 'Unknown Airline',
+            iata: this.extractIataCode(apiResponse.AIRLINE) || 'Unknown',
+            icao: this.extractIcaoCode(apiResponse.AIRLINE) || 'Unknown'
           },
           flight: {
-            number: '0000',
-            iata: 'UNK0000',
-            icao: 'UNKN0000',
+            number: apiResponse.FLIGHT_NUMBER || 'Unknown',
+            iata: apiResponse.FLIGHT_IATA || 'Unknown',
+            icao: apiResponse.FLIGHT_ICAO || 'Unknown',
             codeshared: null
           },
           aircraft: {
@@ -203,9 +203,10 @@ class GoFlightLabsService {
       
       // Formato antigo da API (manter compatibilidade)
       const flightDate = apiResponse.updated ? new Date(apiResponse.updated * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      const now = new Date();
-      const scheduledDeparture = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
-      const scheduledArrival = new Date(now.getTime() + 4 * 60 * 60 * 1000).toISOString();
+      
+      // Usar horários reais da API, não hardcoded
+      const scheduledDeparture = apiResponse.dep_scheduled || apiResponse.dep_time || '';
+      const scheduledArrival = apiResponse.arr_scheduled || apiResponse.arr_time || '';
       const airlineName = apiResponse.airline_name || apiResponse.airline_icao || apiResponse.airline_iata || 'Unknown Airline';
       const departureAirportName = apiResponse.dep_name || apiResponse.dep_icao || apiResponse.dep_iata || 'Unknown Airport';
       const arrivalAirportName = apiResponse.arr_name || apiResponse.arr_icao || apiResponse.arr_iata || 'Unknown Airport';
@@ -291,6 +292,13 @@ class GoFlightLabsService {
     // Extrair código IATA de strings como "Nador (NDR)" ou "Barcelona (BCN)"
     const match = airportStr.match(/\(([A-Z]{3})\)/);
     return match ? match[1] : 'UNK';
+  }
+
+  extractIcaoCode(airlineStr: string): string {
+    // Extrair código ICAO de strings de companhia aérea
+    if (!airlineStr) return 'UNKN';
+    const match = airlineStr.match(/\(([A-Z]{4})\)/);
+    return match ? match[1] : 'UNKN';
   }
   
   createISODateTime(date: string, time: string): string {
