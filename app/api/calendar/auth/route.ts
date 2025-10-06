@@ -15,6 +15,8 @@ function getOAuthClient() {
 export async function GET(request: NextRequest) {
   try {
     const client = getOAuthClient()
+    const { searchParams } = new URL(request.url)
+    const prompt = searchParams.get('prompt') || 'select_account' // Padrão: selecionar conta existente
 
     const state = (globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)) + ':' + Date.now()
 
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
 
     const authUrl = client.generateAuthUrl({
       access_type: 'offline',
-      prompt: 'consent',
+      prompt: prompt, // Usar o prompt passado (select_account ou consent)
       scope: scopes,
       include_granted_scopes: true,
       state,

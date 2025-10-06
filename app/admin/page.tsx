@@ -42,9 +42,44 @@ export default function AdminDashboard() {
   const [showEventDetailsPopup, setShowEventDetailsPopup] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState<any>(null)
 
-  const handleConnectGoogle = () => {
-    // Redireciona para iniciar o fluxo OAuth
-    window.location.href = "/api/calendar/auth"
+  const handleConnectGoogle = async () => {
+    try {
+      // Primeiro, verificar se já existe uma conta conectada
+      if (user?.id) {
+        const now = new Date()
+        const inOneHour = new Date(now.getTime() + 60 * 60 * 1000)
+        const params = new URLSearchParams({
+          userId: user.id,
+          timeMin: now.toISOString(),
+          timeMax: inOneHour.toISOString(),
+        })
+        
+        const res = await fetch(`/api/calendar/events?${params.toString()}`)
+        if (res.ok) {
+          // Já está conectado, atualizar status
+          setGcalStatus("connected")
+          setGcalMessage("Google Calendar já estava conectado!")
+          return
+        }
+      }
+      
+      // Se não está conectado, iniciar OAuth com prompt=select_account para escolher conta
+      const authUrl = new URL("/api/calendar/auth", window.location.origin)
+      authUrl.searchParams.set('prompt', 'select_account') // Permite escolher conta existente
+      
+      window.location.href = authUrl.toString()
+    } catch (error) {
+      console.error('Erro ao verificar status do Google Calendar:', error)
+      // Em caso de erro, redirecionar para OAuth normal
+      window.location.href = "/api/calendar/auth"
+    }
+  }
+
+  const handleReconnectGoogle = () => {
+    // Forçar nova conexão com prompt=consent
+    const authUrl = new URL("/api/calendar/auth", window.location.origin)
+    authUrl.searchParams.set('prompt', 'consent') // Força nova autorização
+    window.location.href = authUrl.toString()
   }
 
   const handleCreateEvent = (day: number) => {
@@ -63,6 +98,32 @@ export default function AdminDashboard() {
   const checkGoogleCalendarStatus = async (uid: string) => {
     try {
       setGcalStatus("checking")
+      
+      // Primeiro, verificar se há tokens salvos no localStorage
+      const savedTokens = localStorage.getItem('google_calendar_tokens')
+      if (savedTokens) {
+        try {
+          const tokens = JSON.parse(savedTokens)
+          const now = new Date()
+          const expiryDate = new Date(tokens.expiry_date)
+          
+          // Se o token ainda é válido (não expirou)
+          if (expiryDate > now) {
+            console.log('✅ Tokens válidos encontrados no localStorage')
+            setGcalStatus("connected")
+            setGcalMessage("Google Calendar conectado (cache local)")
+            return
+          } else {
+            console.log('⚠️ Tokens expirados no localStorage, verificando no servidor')
+            localStorage.removeItem('google_calendar_tokens')
+          }
+        } catch (e) {
+          console.log('⚠️ Erro ao ler tokens do localStorage:', e)
+          localStorage.removeItem('google_calendar_tokens')
+        }
+      }
+      
+      // Verificar no servidor
       const now = new Date()
       const inOneHour = new Date(now.getTime() + 60 * 60 * 1000)
       const params = new URLSearchParams({
@@ -101,8 +162,15 @@ export default function AdminDashboard() {
       url.searchParams.delete("gcal_connected")
       window.history.replaceState({}, "", url.toString())
     } else if (url.searchParams.get("gcal_error")) {
+      const error = url.searchParams.get("gcal_error")
       setGcalStatus("disconnected")
-      setGcalMessage("Falha ao conectar ao Google Calendar")
+      
+      if (error === 'oauth_disabled') {
+        setGcalMessage("❌ Cliente OAuth desabilitado. Verifique as configurações no Google Cloud Console.")
+      } else {
+        setGcalMessage(`❌ Falha ao conectar: ${decodeURIComponent(error)}`)
+      }
+      
       url.searchParams.delete("gcal_error")
       window.history.replaceState({}, "", url.toString())
     } else {
@@ -366,12 +434,24 @@ export default function AdminDashboard() {
                 {gcalStatus === 'connected' ? 'Google Calendar conectado' : gcalStatus === 'checking' ? 'Verificando integração...' : 'Google Calendar desconectado'}
               </span>
             </div>
-            <button
-              onClick={handleConnectGoogle}
-              className="px-3 py-1 text-sm rounded bg-secondary text-white hover:bg-secondary/90"
-            >
-              Conectar Google Calendar
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleConnectGoogle}
+                className="px-3 py-1 text-sm rounded bg-secondary text-white hover:bg-secondary/90"
+              >
+                {gcalStatus === 'connected' ? 'Verificar Conexão' : 'Conectar Google Calendar'}
+              </button>
+              
+              {gcalStatus === 'connected' && (
+                <button
+                  onClick={handleReconnectGoogle}
+                  className="px-3 py-1 text-sm rounded bg-orange-500 text-white hover:bg-orange-600"
+                  title="Forçar nova conexão com outra conta"
+                >
+                  Reconectar
+                </button>
+              )}
+            </div>
             <button 
               onClick={() => setShowCalendar(false)}
               className={`px-3 py-1 text-sm rounded ${!showCalendar ? 'bg-secondary text-white' : 'bg-background-light text-text-gray hover:bg-gray-200'}`}

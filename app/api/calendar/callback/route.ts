@@ -22,6 +22,13 @@ export async function GET(request: NextRequest) {
   const error = searchParams.get('error')
 
   if (error) {
+    console.error('❌ Erro OAuth:', error)
+    
+    // Tratar erro específico de cliente desabilitado
+    if (error === 'disabled_client') {
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/admin?gcal_error=oauth_disabled`)
+    }
+    
     return NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/admin?gcal_error=${encodeURIComponent(error)}`)
   }
 
@@ -94,10 +101,38 @@ export async function GET(request: NextRequest) {
       console.log('✅ [Callback] Tokens salvos com sucesso:', data?.id)
     }
 
-    // Limpar cookie state
+    // Salvar tokens no localStorage via script inline
+    const tokenData = {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expiry_date: expiryDate?.toISOString() || null,
+      scope: tokens.scope || null,
+      token_type: tokens.token_type || null,
+    }
+    
+    // Limpar cookie state e redirecionar com script para salvar no localStorage
     const res = NextResponse.redirect(`${process.env.NEXT_PUBLIC_BASE_URL || ''}/admin?gcal_connected=1`)
     res.cookies.set('gcal_oauth_state', '', { maxAge: 0, path: '/' })
-    return res
+    
+    // Adicionar script para salvar tokens no localStorage
+    const script = `
+      <script>
+        try {
+          localStorage.setItem('google_calendar_tokens', '${JSON.stringify(tokenData)}');
+          console.log('✅ Tokens salvos no localStorage');
+        } catch (e) {
+          console.error('❌ Erro ao salvar tokens no localStorage:', e);
+        }
+        window.location.href = '${process.env.NEXT_PUBLIC_BASE_URL || ''}/admin?gcal_connected=1';
+      </script>
+    `
+    
+    return new Response(script, {
+      headers: {
+        'Content-Type': 'text/html',
+        ...res.headers
+      }
+    })
   } catch (err: any) {
     console.error('Erro no callback do Google OAuth:', err)
     return NextResponse.json(
