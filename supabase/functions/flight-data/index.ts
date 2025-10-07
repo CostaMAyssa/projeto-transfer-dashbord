@@ -47,9 +47,29 @@ class GoFlightLabsService {
       
       if (!response.ok) {
         console.error(`❌ Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
-        const errorData = await response.json().catch(() => ({}));
+        
+        let errorData = {};
+        try {
+          errorData = await response.json();
+        } catch (jsonError) {
+          console.error(`❌ Erro ao parsear JSON de erro:`, jsonError);
+          errorData = { message: 'Erro ao parsear resposta da API' };
+        }
+        
         console.error(`❌ Detalhes do erro:`, errorData);
-        throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}. Se o problema persistir, entre em contato: hello@goflightlabs.com ou considere usar AviationStack API.`);
+        
+        // Tratamento específico por código de erro
+        if (response.status === 401) {
+          throw new Error('Chave de acesso inválida. Verifique GOFLIGHTLABS_ACCESS_KEY');
+        } else if (response.status === 403) {
+          throw new Error('Acesso negado. Verifique permissões da API key');
+        } else if (response.status === 429) {
+          throw new Error('Limite de requisições excedido. Tente novamente mais tarde');
+        } else if (response.status >= 500) {
+          throw new Error('Erro interno do servidor GoFlightLabs. Tente novamente mais tarde');
+        } else {
+          throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}. Detalhes: ${JSON.stringify(errorData)}`);
+        }
       }
       
       const data = await response.json() as FlightApiResponse;
@@ -60,22 +80,57 @@ class GoFlightLabsService {
       throw error;
     }
   }
+  
+  // Função helper para detectar se é voo internacional
+  isInternationalFlight(rawData: any): boolean {
+    if (!rawData.departure?.iata || !rawData.arrival?.iata) return false;
+    
+    // Lista de países/regiões para voos domésticos
+    const domesticCountries = ['BR', 'US', 'CA', 'MX', 'AR', 'CL', 'CO', 'PE', 'UY', 'PY', 'BO', 'VE', 'EC', 'GY', 'SR', 'GF'];
+    
+    const depCountry = rawData.departure.iata.substring(0, 2);
+    const arrCountry = rawData.arrival.iata.substring(0, 2);
+    
+    // Se os códigos IATA não seguem padrão de país, usar lógica alternativa
+    if (depCountry.length !== 2 || arrCountry.length !== 2) {
+      // Verificar se aeroportos são do mesmo país baseado em códigos conhecidos
+      const brazilianAirports = ['GRU', 'GIG', 'BSB', 'CGH', 'SDU', 'CNF', 'REC', 'SSA', 'FOR', 'BEL', 'POA', 'CWB', 'MAO', 'SLZ', 'JPA', 'NAT', 'MCZ', 'AJU', 'THE', 'FEN', 'JDO', 'CGB', 'CGR', 'VIX', 'UDI', 'RAO', 'BPS', 'IGU', 'CWB', 'JOI', 'LDB', 'MGF', 'PET', 'RBR', 'SJP', 'TUR', 'UBA', 'VCP'];
+      const isDepBrazilian = brazilianAirports.includes(rawData.departure.iata);
+      const isArrBrazilian = brazilianAirports.includes(rawData.arrival.iata);
+      
+      return !(isDepBrazilian && isArrBrazilian);
+    }
+    
+    return depCountry !== arrCountry;
+  }
+  
   transformFlightData(rawData: any): any {
     console.log('Dados brutos recebidos:', JSON.stringify(rawData, null, 2));
-    // Verifica se os objetos necessários existem
-    if (!rawData.departure || !rawData.arrival || !rawData.flight || !rawData.airline) {
-      console.error('Dados de voo incompletos:', rawData);
-      throw new Error('Dados de voo incompletos ou em formato inválido');
+    
+    // Validação mais flexível - apenas campos essenciais
+    if (!rawData.departure || !rawData.arrival) {
+      console.error('Dados de voo incompletos - falta departure ou arrival:', rawData);
+      throw new Error('Dados de voo incompletos - falta informações de partida ou chegada');
     }
-    // Verifica se scheduled existe antes de criar a data
+    
+    // Verificar se scheduled existe e é válido
     if (!rawData.departure.scheduled) {
       console.error('Campo departure.scheduled não encontrado:', rawData.departure);
       throw new Error('Campo departure.scheduled não encontrado nos dados do voo');
     }
-    // Calcula horário de embarque sugerido (1.5h antes para voos internacionais, 1h para domésticos)
+    
+    // Validar se a data é válida
     const departureTime = new Date(rawData.departure.scheduled);
-    const boardingTime = new Date(departureTime.getTime() - 90 * 60 * 1000) // 1.5h antes
-    ;
+    if (isNaN(departureTime.getTime())) {
+      console.error('Data de partida inválida:', rawData.departure.scheduled);
+      throw new Error('Data de partida inválida');
+    }
+    
+    // Calcular horário de embarque baseado no tipo de voo
+    const isInternational = this.isInternationalFlight(rawData);
+    const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
+    const boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
+    
     return {
       flightNumber: rawData.flight.iata || rawData.flight.number || 'Unknown',
       airline: {
@@ -89,12 +144,12 @@ class GoFlightLabsService {
           iata: rawData.departure.iata || 'Unknown',
           icao: rawData.departure.icao || 'Unknown'
         },
-        terminal: rawData.departure.terminal,
-        gate: rawData.departure.gate,
+        terminal: rawData.departure.terminal || null,
+        gate: rawData.departure.gate || null,
         scheduled: rawData.departure.scheduled,
-        estimated: rawData.departure.estimated,
-        actual: rawData.departure.actual,
-        delay: rawData.departure.delay || 0
+        estimated: rawData.departure.estimated || rawData.departure.scheduled,
+        actual: rawData.departure.actual || null,
+        delay: Math.max(0, rawData.departure.delay || 0) // Garantir que delay não seja negativo
       },
       arrival: {
         airport: {
@@ -102,13 +157,13 @@ class GoFlightLabsService {
           iata: rawData.arrival.iata || 'Unknown',
           icao: rawData.arrival.icao || 'Unknown'
         },
-        terminal: rawData.arrival.terminal,
-        gate: rawData.arrival.gate,
-        baggage: rawData.arrival.baggage,
+        terminal: rawData.arrival.terminal || null,
+        gate: rawData.arrival.gate || null,
+        baggage: rawData.arrival.baggage || null,
         scheduled: rawData.arrival.scheduled || 'Unknown',
-        estimated: rawData.arrival.estimated,
-        actual: rawData.arrival.actual,
-        delay: rawData.arrival.delay || 0
+        estimated: rawData.arrival.estimated || rawData.arrival.scheduled,
+        actual: rawData.arrival.actual || null,
+        delay: Math.max(0, rawData.arrival.delay || 0) // Garantir que delay não seja negativo
       },
       status: rawData.flight_status || 'Unknown',
       aircraft: {
@@ -455,36 +510,28 @@ class GoFlightLabsService {
       const params: any = { flight_number: cleanFlightNumber };
       if (date) params.date = date;
 
-      const endpoint = 'flight'; // sempre usar o singular
+      const endpoint = 'flight'; // usar singular conforme documentação oficial
       console.log(`Buscando voo no endpoint /${endpoint}:`, params);
 
       const response = await this.makeRequest(endpoint, params);
-      console.log('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+      console.log('Resposta da API (/flights):', JSON.stringify(response, null, 2));
 
-      // caso a API retorne erro sem voo
-      if (response?.data?.error || (response?.data && typeof response.data === 'string' && response.data.includes('Nenhum dado foi encontrado'))) {
-        console.warn('⚠ Voo não encontrado, retornando 200 com sucesso: false');
-        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+      // Verificar se a API retornou erro ou dados vazios
+      if (response?.data?.error || 
+          (response?.data && typeof response.data === 'string' && 
+           (response.data.includes('No data found') || 
+            response.data.includes('Invalid flight') ||
+            response.data.includes('Try again')))) {
+        console.warn('⚠ Voo não encontrado');
+        console.warn('Resposta da API (/flights):', JSON.stringify(response, null, 2));
         console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
-        return null; // vai gerar o 404 "Voo não encontrado"
-      }
-
-      // Verificar se a resposta indica que não há voo na data especificada
-      if (response?.success === false && response?.data && typeof response.data === 'string') {
-        if (response.data.includes('Nenhum dado foi encontrado') || 
-            response.data.includes('verifique o número do voo') ||
-            response.data.includes('tente novamente')) {
-          console.warn('⚠ Voo não encontrado na data especificada');
-          console.warn('Resposta da API (flight):', JSON.stringify(response, null, 2));
-          console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
-          return null;
-        }
+        return null;
       }
 
       // garantir que veio algo
-      if (!response?.success || !response.data) {
+      if (!response?.data) {
         console.warn('Nenhum registro válido retornado');
-        console.warn('Resposta da API (flight):', JSON.stringify(response, null, 2));
+        console.warn('Resposta da API (flights):', JSON.stringify(response, null, 2));
         return null;
       }
 
