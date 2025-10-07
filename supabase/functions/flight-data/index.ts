@@ -64,7 +64,10 @@ class GoFlightLabsService {
         } else if (response.status === 403) {
           throw new Error('Acesso negado. Verifique permissões da API key');
         } else if (response.status === 429) {
-          throw new Error('Limite de requisições excedido. Tente novamente mais tarde');
+          // Extrair informações de rate limit se disponíveis
+          const retryAfter = response.headers.get('Retry-After');
+          const rateLimitInfo = retryAfter ? ` Aguarde ${retryAfter} segundos.` : '';
+          throw new Error(`Limite de requisições excedido.${rateLimitInfo} Considere implementar cache ou reduzir frequência de chamadas.`);
         } else if (response.status >= 500) {
           throw new Error('Erro interno do servidor GoFlightLabs. Tente novamente mais tarde');
         } else {
@@ -83,25 +86,41 @@ class GoFlightLabsService {
   
   // Função helper para detectar se é voo internacional
   isInternationalFlight(rawData: any): boolean {
-    if (!rawData.departure?.iata || !rawData.arrival?.iata) return false;
-    
-    // Lista de países/regiões para voos domésticos
-    const domesticCountries = ['BR', 'US', 'CA', 'MX', 'AR', 'CL', 'CO', 'PE', 'UY', 'PY', 'BO', 'VE', 'EC', 'GY', 'SR', 'GF'];
-    
-    const depCountry = rawData.departure.iata.substring(0, 2);
-    const arrCountry = rawData.arrival.iata.substring(0, 2);
-    
-    // Se os códigos IATA não seguem padrão de país, usar lógica alternativa
-    if (depCountry.length !== 2 || arrCountry.length !== 2) {
-      // Verificar se aeroportos são do mesmo país baseado em códigos conhecidos
-      const brazilianAirports = ['GRU', 'GIG', 'BSB', 'CGH', 'SDU', 'CNF', 'REC', 'SSA', 'FOR', 'BEL', 'POA', 'CWB', 'MAO', 'SLZ', 'JPA', 'NAT', 'MCZ', 'AJU', 'THE', 'FEN', 'JDO', 'CGB', 'CGR', 'VIX', 'UDI', 'RAO', 'BPS', 'IGU', 'CWB', 'JOI', 'LDB', 'MGF', 'PET', 'RBR', 'SJP', 'TUR', 'UBA', 'VCP'];
-      const isDepBrazilian = brazilianAirports.includes(rawData.departure.iata);
-      const isArrBrazilian = brazilianAirports.includes(rawData.arrival.iata);
-      
-      return !(isDepBrazilian && isArrBrazilian);
+    // Se não temos dados de aeroportos, assumir doméstico (mais conservador)
+    if (!rawData.departure?.iata || !rawData.arrival?.iata) {
+      console.log('⚠️ Dados de aeroporto insuficientes, assumindo voo doméstico');
+      return false;
     }
     
-    return depCountry !== arrCountry;
+    const depIata = rawData.departure.iata;
+    const arrIata = rawData.arrival.iata;
+    
+    // Lista de aeroportos brasileiros conhecidos
+    const brazilianAirports = [
+      'GRU', 'GIG', 'BSB', 'CGH', 'SDU', 'CNF', 'REC', 'SSA', 'FOR', 'BEL', 
+      'POA', 'CWB', 'MAO', 'SLZ', 'JPA', 'NAT', 'MCZ', 'AJU', 'THE', 'FEN', 
+      'JDO', 'CGB', 'CGR', 'VIX', 'UDI', 'RAO', 'BPS', 'IGU', 'JOI', 'LDB', 
+      'MGF', 'PET', 'RBR', 'SJP', 'TUR', 'UBA', 'VCP'
+    ];
+    
+    const isDepBrazilian = brazilianAirports.includes(depIata);
+    const isArrBrazilian = brazilianAirports.includes(arrIata);
+    
+    // Se ambos são brasileiros, é doméstico
+    if (isDepBrazilian && isArrBrazilian) {
+      console.log(`✅ Voo doméstico detectado: ${depIata} -> ${arrIata}`);
+      return false;
+    }
+    
+    // Se pelo menos um não é brasileiro, é internacional
+    if (!isDepBrazilian || !isArrBrazilian) {
+      console.log(`✅ Voo internacional detectado: ${depIata} -> ${arrIata}`);
+      return true;
+    }
+    
+    // Fallback: assumir doméstico se não conseguir determinar
+    console.log('⚠️ Não foi possível determinar tipo de voo, assumindo doméstico');
+    return false;
   }
   
   transformFlightData(rawData: any): any {
@@ -334,8 +353,45 @@ class GoFlightLabsService {
   // Funções auxiliares para o novo formato da API
   parseFlightDate(dateStr: string): string {
     try {
-      // Converter datas como "13 Sep 2025" para formato ISO
+      // Tratar formato PT-BR: "13 de setembro de 2025"
+      if (dateStr.includes(' de ')) {
+        const monthsPT = {
+          'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+          'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+        };
+        
+        const match = dateStr.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
+        if (match) {
+          const [, day, monthName, year] = match;
+          const month = monthsPT[monthName.toLowerCase()];
+          if (month !== undefined) {
+            const date = new Date(Number(year), month, Number(day));
+            return date.toISOString().split('T')[0];
+          }
+        }
+      }
+      
+      // Tratar formato EN: "13 Sep 2025"
+      const monthsEN = {
+        'jan': 0, 'feb': 1, 'mar': 2, 'apr': 3, 'may': 4, 'jun': 5,
+        'jul': 6, 'aug': 7, 'sep': 8, 'oct': 9, 'nov': 10, 'dec': 11
+      };
+      
+      const matchEN = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+      if (matchEN) {
+        const [, day, monthName, year] = matchEN;
+        const month = monthsEN[monthName.toLowerCase()];
+        if (month !== undefined) {
+          const date = new Date(Number(year), month, Number(day));
+          return date.toISOString().split('T')[0];
+        }
+      }
+      
+      // Fallback: tentar parse direto
       const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        throw new Error('Formato de data inválido');
+      }
       return date.toISOString().split('T')[0];
     } catch (error) {
       console.error('Erro ao parsear data:', dateStr, error);
@@ -393,113 +449,27 @@ class GoFlightLabsService {
     return 'scheduled';
   }
 
-  // Mapeamento dinâmico de prefixos para códigos IATA
+  // Extrair apenas o número do voo (sem prefixo IATA)
   extractFlightNumber(fullFlightNumber: string): string {
-    const AIRLINE_MAPPING: Record<string, string> = {
-      // Brasileiras
-      'LATAM': 'LA',
-      'GOL': 'G3', 
-      'AZUL': 'AD',
-      'TAM': 'JJ',
-      
-      // Americanas
-      'AMERICAN': 'AA',
-      'AMERICAN AIRLINES': 'AA',
-      'DELTA': 'DL',
-      'DELTA AIRLINES': 'DL',
-      'UNITED': 'UA',
-      'UNITED AIRLINES': 'UA',
-      'SOUTHWEST': 'WN',
-      'JETBLUE': 'B6',
-      'FRONTIER': 'F9',
-      'SPIRIT': 'NK',
-      'ALASKA': 'AS',
-      'HAWAIIAN': 'HA',
-      
-      // Europeias
-      'BRITISH AIRWAYS': 'BA',
-      'LUFTHANSA': 'LH',
-      'AIR FRANCE': 'AF',
-      'KLM': 'KL',
-      'SWISS': 'LX',
-      'AUSTRIAN': 'OS',
-      'BRUSSELS': 'SN',
-      'TAP': 'TP',
-      'RYANAIR': 'FR',
-      'EASYJET': 'U2',
-      'VUELING': 'VY',
-      'EUROWINGS': 'EW',
-      
-      // Asiáticas
-      'JAPAN AIRLINES': 'NH',
-      'JAL': 'NH',
-      'KOREAN AIR': 'KE',
-      'ASIANA': 'OZ',
-      'SINGAPORE': 'SQ',
-      'THAI': 'TG',
-      'MALAYSIA': 'MH',
-      'CATHAY PACIFIC': 'CX',
-      'CHINA AIRLINES': 'CI',
-      'VARIG': 'BR',
-      'GARUDA': 'GA',
-      'JET AIRWAYS': '9W',
-      'AIR INDIA': 'AI',
-      'SINGAPORE AIRLINES': 'SQ',
-      'PHILIPPINE': 'PR',
-      'CEBU PACIFIC': '5J',
-      
-      // Códigos IATA diretos
-      'LA': 'LA', 'G3': 'G3', 'AD': 'AD', 'JJ': 'JJ',
-      'AA': 'AA', 'DL': 'DL', 'UA': 'UA', 'WN': 'WN',
-      'B6': 'B6', 'F9': 'F9', 'NK': 'NK', 'AS': 'AS', 'HA': 'HA',
-      'BA': 'BA', 'LH': 'LH', 'AF': 'AF', 'KL': 'KL', 'LX': 'LX',
-      'OS': 'OS', 'SN': 'SN', 'TP': 'TP', 'FR': 'FR', 'U2': 'U2',
-      'VY': 'VY', 'EW': 'EW', 'NH': 'NH', 'KE': 'KE', 'OZ': 'OZ',
-      'SQ': 'SQ', 'TG': 'TG', 'MH': 'MH', 'CX': 'CX', 'CI': 'CI',
-      'BR': 'BR', 'GA': 'GA', '9W': '9W', 'AI': 'AI', 'PR': 'PR',
-      '5J': '5J', 'S7': 'S7', 'SU': 'SU', 'FV': 'FV', 'DP': 'DP',
-      'F7': 'F7', 'H2': 'H2', 'H9': 'H9', 'PC': 'PC', 'TK': 'TK',
-      'MS': 'MS', 'QR': 'QR', 'EK': 'EK', 'EY': 'EY', 'SV': 'SV',
-      'GF': 'GF', 'WY': 'WY', 'RJ': 'RJ', 'KU': 'KU', 'FZ': 'FZ'
-    };
-    
     const original = fullFlightNumber.toUpperCase().trim();
     console.log(`🔍 Processando voo original: "${original}"`);
     
-    // Se já está no formato correto (ex: LA3359, G31900)
-    if (/^[A-Z]{2}\d+$/.test(original)) {
-      console.log(`✅ Já no formato correto: ${original}`);
+    // Se já é só número (ex: 30375, 1900)
+    if (/^\d+$/.test(original)) {
+      console.log(`✅ Já é só número: ${original}`);
       return original;
     }
     
-    // Tentar encontrar prefixo conhecido
-    for (const [prefix, iataCode] of Object.entries(AIRLINE_MAPPING)) {
-      if (original.startsWith(prefix)) {
-        const remaining = original.substring(prefix.length);
-        const numberMatch = remaining.match(/\d+/);
-        const number = numberMatch ? numberMatch[0] : remaining;
-        const result = `${iataCode}${number}`;
-        
-        console.log(`✅ Prefixo encontrado: "${prefix}" -> "${iataCode}" + "${number}" = "${result}"`);
-        return result;
-      }
-    }
-    
-    // Se não encontrou prefixo conhecido, tentar extrair código IATA do início
-    const iataMatch = original.match(/^([A-Z]{2,3})/);
-    if (iataMatch) {
-      const potentialIata = iataMatch[1];
-      const remaining = original.substring(potentialIata.length);
-      const numberMatch = remaining.match(/\d+/);
-      const number = numberMatch ? numberMatch[0] : remaining;
-      const result = `${potentialIata}${number}`;
-      
-      console.log(`⚠️ Prefixo não mapeado, usando original: "${potentialIata}" + "${number}" = "${result}"`);
-      return result;
+    // Extrair número de voos com prefixo IATA (ex: LA3359 -> 3359)
+    const numberMatch = original.match(/\d+/);
+    if (numberMatch) {
+      const number = numberMatch[0];
+      console.log(`✅ Número extraído: "${original}" -> "${number}"`);
+      return number;
     }
     
     // Fallback: usar como está
-    console.log(`⚠️ Não foi possível processar, mantendo original: "${original}"`);
+    console.log(`⚠️ Não foi possível extrair número, mantendo original: "${original}"`);
     return original;
   }
 
@@ -620,45 +590,33 @@ class GoFlightLabsService {
       console.log('Parâmetros da requisição:', params);
       const response = await this.makeRequest(endpoint, params);
       console.log(`Resposta recebida da API:`, JSON.stringify(response, null, 2));
-      // Processar a resposta com base no formato
+      // Processar a resposta - API retorna array direto conforme documentação
       let rawFlights = [];
-      // Caso 1: Resposta no formato antigo - array em data
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        console.log('Detectado formato antigo da API (array em data) para horários de aeroporto');
+      
+      if (Array.isArray(response) && response.length > 0) {
+        console.log('Detectado formato da API como array direto (conforme documentação)');
         // Processar cada voo no array
-        for (const flight of response.data){
+        for (const flight of response) {
           if (this.validateFlightResponse(flight)) {
-            // Já está no formato esperado
             rawFlights.push(flight);
           } else {
-            // Tentar adaptar
             const adaptedFlight = this.adaptApiResponse(flight);
             if (adaptedFlight) rawFlights.push(adaptedFlight);
           }
         }
-      } else if (Array.isArray(response) && response.length > 0) {
-        console.log('Detectado formato da API como array direto para horários de aeroporto');
+      } else if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        console.log('Detectado formato da API com propriedade data (fallback)');
         // Processar cada voo no array
-        for (const flight of response){
+        for (const flight of response.data) {
           if (this.validateFlightResponse(flight)) {
-            // Já está no formato esperado
             rawFlights.push(flight);
           } else {
-            // Tentar adaptar
             const adaptedFlight = this.adaptApiResponse(flight);
             if (adaptedFlight) rawFlights.push(adaptedFlight);
           }
         }
-      } else if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
-        console.log('Detectado formato da API como objeto com propriedade data para horários de aeroporto');
-        // Tentar adaptar o objeto data
-        const adaptedFlight = this.adaptApiResponse(response.data);
-        if (adaptedFlight) rawFlights.push(adaptedFlight);
-      } else if (typeof response === 'object' && !Array.isArray(response)) {
-        console.log('Detectado formato da API como objeto único para horários de aeroporto');
-        // Tentar adaptar o objeto
-        const adaptedFlight = this.adaptApiResponse(response);
-        if (adaptedFlight) rawFlights.push(adaptedFlight);
+      } else {
+        console.log('Formato de resposta não reconhecido para horários de aeroporto');
       }
       if (rawFlights.length === 0) {
         console.warn('Nenhum voo com dados válidos encontrado');
