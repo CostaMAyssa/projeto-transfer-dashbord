@@ -9,10 +9,12 @@ declare const Deno: {
     get(key: string): string | undefined;
   };
 };
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 };
+
 interface FlightApiResponse {
   [key: string]: any;
 }
@@ -25,33 +27,35 @@ interface FlightParams {
 
 class GoFlightLabsService {
   accessKey: string;
-  baseUrl = 'https://www.goflightlabs.com';
+  baseUrl = 'https://app.goflightlabs.com'; // Corrigido: Base URL da API oficial
   supabase: any;
-  constructor(accessKey: string, supabaseUrl: string, supabaseKey: string){
+
+  constructor(accessKey: string, supabaseUrl: string, supabaseKey: string) {
     this.accessKey = accessKey;
     this.supabase = createClient(supabaseUrl, supabaseKey);
   }
+
   async makeRequest(endpoint: string, params: any = {}): Promise<any> {
     const url = new URL(`${this.baseUrl}/${endpoint}`);
     // Adiciona access_key como primeiro parâmetro para garantir formato correto
     url.searchParams.append('access_key', this.accessKey);
     // Adiciona os demais parâmetros da requisição
-    Object.entries(params).forEach(([key, value])=>{
+    Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, String(value));
     });
-    
+
     console.log(`Fazendo requisição para: ${url.toString()}`);
-    
+
     try {
       const response = await fetch(url.toString());
-      
+
       if (!response.ok) {
         console.error(`❌ Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
         const errorData = await response.json().catch(() => ({}));
         console.error(`❌ Detalhes do erro:`, errorData);
         throw new Error(`Erro na API GoFlightLabs: ${response.status} - ${response.statusText}. Se o problema persistir, entre em contato: hello@goflightlabs.com ou considere usar AviationStack API.`);
       }
-      
+
       const data = await response.json() as FlightApiResponse;
       console.log(`✅ Resposta da API (${endpoint}):`, JSON.stringify(data, null, 2));
       return data;
@@ -60,6 +64,7 @@ class GoFlightLabsService {
       throw error;
     }
   }
+
   transformFlightData(rawData: any): any {
     console.log('Dados brutos recebidos:', JSON.stringify(rawData, null, 2));
     // Verifica se os objetos necessários existem
@@ -74,8 +79,8 @@ class GoFlightLabsService {
     }
     // Calcula horário de embarque sugerido (1.5h antes para voos internacionais, 1h para domésticos)
     const departureTime = new Date(rawData.departure.scheduled);
-    const boardingTime = new Date(departureTime.getTime() - 90 * 60 * 1000) // 1.5h antes
-    ;
+    const boardingTime = new Date(departureTime.getTime() - 90 * 60 * 1000); // 1.5h antes
+
     return {
       flightNumber: rawData.flight.iata || rawData.flight.number || 'Unknown',
       airline: {
@@ -89,11 +94,11 @@ class GoFlightLabsService {
           iata: rawData.departure.iata || 'Unknown',
           icao: rawData.departure.icao || 'Unknown'
         },
-        terminal: rawData.departure.terminal,
-        gate: rawData.departure.gate,
+        terminal: rawData.departure.terminal || null,
+        gate: rawData.departure.gate || null,
         scheduled: rawData.departure.scheduled,
-        estimated: rawData.departure.estimated,
-        actual: rawData.departure.actual,
+        estimated: rawData.departure.estimated || rawData.departure.scheduled,
+        actual: rawData.departure.actual || null,
         delay: rawData.departure.delay || 0
       },
       arrival: {
@@ -102,12 +107,12 @@ class GoFlightLabsService {
           iata: rawData.arrival.iata || 'Unknown',
           icao: rawData.arrival.icao || 'Unknown'
         },
-        terminal: rawData.arrival.terminal,
-        gate: rawData.arrival.gate,
-        baggage: rawData.arrival.baggage,
+        terminal: rawData.arrival.terminal || null,
+        gate: rawData.arrival.gate || null,
+        baggage: rawData.arrival.baggage || null,
         scheduled: rawData.arrival.scheduled || 'Unknown',
-        estimated: rawData.arrival.estimated,
-        actual: rawData.arrival.actual,
+        estimated: rawData.arrival.estimated || rawData.arrival.scheduled,
+        actual: rawData.arrival.actual || null,
         delay: rawData.arrival.delay || 0
       },
       status: rawData.flight_status || 'Unknown',
@@ -118,6 +123,7 @@ class GoFlightLabsService {
       suggestedBoardingTime: boardingTime.toISOString()
     };
   }
+
   // Função para adaptar o novo formato de resposta da API para o formato esperado pelo sistema
   adaptApiResponse(apiResponse: any): any {
     console.log('Adaptando resposta da API:', JSON.stringify(apiResponse, null, 2));
@@ -127,25 +133,25 @@ class GoFlightLabsService {
       if (apiResponse.DATE && apiResponse.FROM && apiResponse.TO) {
         // Novo formato da API
         const flightDate = this.parseFlightDate(apiResponse.DATE);
-        
+
         // Extrair códigos IATA dos aeroportos
         const depIata = this.extractIataCode(apiResponse.FROM);
         const arrIata = this.extractIataCode(apiResponse.TO);
-        
+
         // Criar horários ISO a partir dos horários fornecidos
         const scheduledDeparture = this.createISODateTime(flightDate, apiResponse.STD);
         const scheduledArrival = this.createISODateTime(flightDate, apiResponse.STA);
         const actualDeparture = apiResponse.ATD && apiResponse.ATD !== '—' ? this.createISODateTime(flightDate, apiResponse.ATD) : '';
-        
+
         // Extrair informações da aeronave
         const aircraftInfo = this.parseAircraftInfo(apiResponse.AIRCRAFT);
-        
+
         const adaptedData = {
           flight_date: flightDate,
           flight_status: this.parseFlightStatus(apiResponse.STATUS),
           departure: {
             airport: apiResponse.FROM,
-            timezone: 'UTC',
+            timezone: 'UTC', // Pode ser extraído se disponível na API
             iata: depIata,
             icao: '',
             terminal: '',
@@ -157,7 +163,7 @@ class GoFlightLabsService {
           },
           arrival: {
             airport: apiResponse.TO,
-            timezone: 'UTC',
+            timezone: 'UTC', // Pode ser extraído se disponível na API
             iata: arrIata,
             icao: '',
             terminal: '',
@@ -170,7 +176,7 @@ class GoFlightLabsService {
           },
           airline: {
             name: apiResponse.AIRLINE || 'Unknown Airline',
-            iata: this.extractIataCode(apiResponse.AIRLINE) || 'Unknown',
+            iata: this.extractAirlineIataCode(apiResponse.AIRLINE) || 'Unknown', // Corrigido: Função separada para airline IATA (2 chars)
             icao: this.extractIcaoCode(apiResponse.AIRLINE) || 'Unknown'
           },
           flight: {
@@ -196,21 +202,21 @@ class GoFlightLabsService {
             is_ground: false
           }
         };
-        
+
         console.log('Dados adaptados com sucesso (novo formato):', JSON.stringify(adaptedData, null, 2));
         return adaptedData;
       }
-      
+
       // Formato antigo da API (manter compatibilidade)
       const flightDate = apiResponse.updated ? new Date(apiResponse.updated * 1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-      
+
       // Usar horários reais da API, não hardcoded
       const scheduledDeparture = apiResponse.dep_scheduled || apiResponse.dep_time || '';
       const scheduledArrival = apiResponse.arr_scheduled || apiResponse.arr_time || '';
       const airlineName = apiResponse.airline_name || apiResponse.airline_icao || apiResponse.airline_iata || 'Unknown Airline';
       const departureAirportName = apiResponse.dep_name || apiResponse.dep_icao || apiResponse.dep_iata || 'Unknown Airport';
       const arrivalAirportName = apiResponse.arr_name || apiResponse.arr_icao || apiResponse.arr_iata || 'Unknown Airport';
-      
+
       const adaptedData = {
         flight_date: flightDate,
         flight_status: apiResponse.status || 'scheduled',
@@ -267,7 +273,7 @@ class GoFlightLabsService {
           is_ground: apiResponse.is_ground !== undefined ? apiResponse.is_ground : false
         }
       };
-      
+
       console.log('Dados adaptados com sucesso (formato antigo):', JSON.stringify(adaptedData, null, 2));
       return adaptedData;
     } catch (error) {
@@ -275,66 +281,87 @@ class GoFlightLabsService {
       return null;
     }
   }
-  
+
   // Funções auxiliares para o novo formato da API
   parseFlightDate(dateStr: string): string {
     try {
-      // Converter datas como "13 Sep 2025" para formato ISO
+      // Converter datas como "13 Sep 2025" para formato ISO (melhor suporte a formatos)
       const date = new Date(dateStr);
+      if (isNaN(date.getTime())) {
+        // Fallback: tentar parse manual se formato específico
+        const parts = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
+        if (parts) {
+          const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+          const [, day, monthStr, year] = parts;
+          const month = months[monthStr.toLowerCase()];
+          if (month !== undefined) {
+            return new Date(Number(year), month, Number(day)).toISOString().split('T')[0];
+          }
+        }
+        throw new Error('Formato de data inválido');
+      }
       return date.toISOString().split('T')[0];
     } catch (error) {
       console.error('Erro ao parsear data:', dateStr, error);
       return new Date().toISOString().split('T')[0];
     }
   }
-  
+
   extractIataCode(airportStr: string): string {
-    // Extrair código IATA de strings como "Nador (NDR)" ou "Barcelona (BCN)"
-    const match = airportStr.match(/\(([A-Z]{3})\)/);
+    // Extrair código IATA de strings como "Nador (NDR)" ou "Barcelona (BCN)" - 3 chars alfanum
+    const match = airportStr.match(/\(([A-Z0-9]{3})\)/);
+    return match ? match[1] : 'UNK';
+  }
+
+  // Nova função separada para IATA de airline (2 chars alfanum)
+  extractAirlineIataCode(airlineStr: string): string {
+    if (!airlineStr) return 'UNK';
+    const match = airlineStr.match(/\(([A-Z0-9]{2})\)/);
     return match ? match[1] : 'UNK';
   }
 
   extractIcaoCode(airlineStr: string): string {
-    // Extrair código ICAO de strings de companhia aérea
+    // Extrair código ICAO de strings de companhia aérea - 3 chars alfanum (corrigido de 4)
     if (!airlineStr) return 'UNKN';
-    const match = airlineStr.match(/\(([A-Z]{4})\)/);
+    const match = airlineStr.match(/\(([A-Z0-9]{3})\)/);
     return match ? match[1] : 'UNKN';
   }
-  
+
   createISODateTime(date: string, time: string): string {
     if (!time || time === '—') return '';
     try {
       // Combinar data e hora para criar ISO datetime
       const dateTime = new Date(`${date}T${time}:00.000Z`);
+      if (isNaN(dateTime.getTime())) throw new Error('Datetime inválido');
       return dateTime.toISOString();
     } catch (error) {
       console.error('Erro ao criar datetime ISO:', date, time, error);
       return '';
     }
   }
-  
+
   parseAircraftInfo(aircraftStr: string): { type: string; registration: string } {
     if (!aircraftStr) return { type: '', registration: '' };
-    
+
     // Extrair informações da aeronave como "A320 (CN-NMR)" ou "320"
     const registrationMatch = aircraftStr.match(/\(([A-Z0-9-]+)\)/);
     const typeMatch = aircraftStr.match(/^([A-Z0-9]+)/);
-    
+
     return {
       type: typeMatch ? typeMatch[1] : aircraftStr,
       registration: registrationMatch ? registrationMatch[1] : ''
     };
   }
-  
+
   parseFlightStatus(statusStr: string): string {
     if (!statusStr) return 'scheduled';
-    
+
     const status = statusStr.toLowerCase();
     if (status.includes('landed')) return 'landed';
     if (status.includes('scheduled')) return 'scheduled';
     if (status.includes('delayed')) return 'delayed';
     if (status.includes('cancelled')) return 'cancelled';
-    
+
     return 'scheduled';
   }
 
@@ -343,10 +370,12 @@ class GoFlightLabsService {
     const AIRLINE_MAPPING: Record<string, string> = {
       // Brasileiras
       'LATAM': 'LA',
-      'GOL': 'G3', 
+      'GOL': 'G3',
       'AZUL': 'AD',
       'TAM': 'JJ',
-      
+      'AVA': 'AV', // Avianca
+      'CMP': 'CM', // Copa Airlines
+
       // Americanas
       'AMERICAN': 'AA',
       'AMERICAN AIRLINES': 'AA',
@@ -360,7 +389,7 @@ class GoFlightLabsService {
       'SPIRIT': 'NK',
       'ALASKA': 'AS',
       'HAWAIIAN': 'HA',
-      
+
       // Europeias
       'BRITISH AIRWAYS': 'BA',
       'LUFTHANSA': 'LH',
@@ -374,7 +403,7 @@ class GoFlightLabsService {
       'EASYJET': 'U2',
       'VUELING': 'VY',
       'EUROWINGS': 'EW',
-      
+
       // Asiáticas
       'JAPAN AIRLINES': 'NH',
       'JAL': 'NH',
@@ -392,9 +421,9 @@ class GoFlightLabsService {
       'SINGAPORE AIRLINES': 'SQ',
       'PHILIPPINE': 'PR',
       'CEBU PACIFIC': '5J',
-      
+
       // Códigos IATA diretos
-      'LA': 'LA', 'G3': 'G3', 'AD': 'AD', 'JJ': 'JJ',
+      'LA': 'LA', 'G3': 'G3', 'AD': 'AD', 'JJ': 'JJ', 'AV': 'AV', 'CM': 'CM',
       'AA': 'AA', 'DL': 'DL', 'UA': 'UA', 'WN': 'WN',
       'B6': 'B6', 'F9': 'F9', 'NK': 'NK', 'AS': 'AS', 'HA': 'HA',
       'BA': 'BA', 'LH': 'LH', 'AF': 'AF', 'KL': 'KL', 'LX': 'LX',
@@ -407,42 +436,51 @@ class GoFlightLabsService {
       'MS': 'MS', 'QR': 'QR', 'EK': 'EK', 'EY': 'EY', 'SV': 'SV',
       'GF': 'GF', 'WY': 'WY', 'RJ': 'RJ', 'KU': 'KU', 'FZ': 'FZ'
     };
-    
+
     const original = fullFlightNumber.toUpperCase().trim();
     console.log(`🔍 Processando voo original: "${original}"`);
-    
-    // Se já está no formato correto (ex: LA3359, G31900)
-    if (/^[A-Z]{2}\d+$/.test(original)) {
+
+    // Se já está no formato correto (ex: LA3359, G31900) - Corrigido: permite dígitos no prefixo
+    if (/^[A-Z0-9]{2}\d+$/.test(original)) {
       console.log(`✅ Já no formato correto: ${original}`);
       return original;
     }
-    
-    // Tentar encontrar prefixo conhecido
-    for (const [prefix, iataCode] of Object.entries(AIRLINE_MAPPING)) {
+
+    // Tentar encontrar prefixo conhecido (ordena por tamanho para pegar o mais específico primeiro)
+    const sortedMappings = Object.entries(AIRLINE_MAPPING).sort((a, b) => b[0].length - a[0].length);
+
+    for (const [prefix, iataCode] of sortedMappings) {
       if (original.startsWith(prefix)) {
         const remaining = original.substring(prefix.length);
         const numberMatch = remaining.match(/\d+/);
         const number = numberMatch ? numberMatch[0] : remaining;
         const result = `${iataCode}${number}`;
-        
+
         console.log(`✅ Prefixo encontrado: "${prefix}" -> "${iataCode}" + "${number}" = "${result}"`);
         return result;
       }
     }
-    
-    // Se não encontrou prefixo conhecido, tentar extrair código IATA do início
-    const iataMatch = original.match(/^([A-Z]{2,3})/);
+
+    // Se não encontrou prefixo conhecido, tentar extrair código IATA do início - Corrigido: permite dígitos
+    const iataMatch = original.match(/^([A-Z0-9]{2})/);
     if (iataMatch) {
       const potentialIata = iataMatch[1];
       const remaining = original.substring(potentialIata.length);
       const numberMatch = remaining.match(/\d+/);
       const number = numberMatch ? numberMatch[0] : remaining;
+
+      // Verificar se o código IATA está no mapeamento
+      if (AIRLINE_MAPPING[potentialIata]) {
+        const result = `${AIRLINE_MAPPING[potentialIata]}${number}`;
+        console.log(`✅ Código IATA mapeado: "${potentialIata}" -> "${AIRLINE_MAPPING[potentialIata]}" + "${number}" = "${result}"`);
+        return result;
+      }
+
       const result = `${potentialIata}${number}`;
-      
       console.log(`⚠️ Prefixo não mapeado, usando original: "${potentialIata}" + "${number}" = "${result}"`);
       return result;
     }
-    
+
     // Fallback: usar como está
     console.log(`⚠️ Não foi possível processar, mantendo original: "${original}"`);
     return original;
@@ -452,26 +490,29 @@ class GoFlightLabsService {
     try {
       // Processar o número do voo com mapeamento dinâmico
       const cleanFlightNumber = this.extractFlightNumber(flightNumber);
-      const params: any = { flight_number: cleanFlightNumber };
-      if (date) params.date = date;
+      console.log(`🔄 MAPEAMENTO: "${flightNumber}" -> "${cleanFlightNumber}"`);
 
-      const endpoint = 'flight'; // sempre usar o singular
+      const params: any = { flight_iata: cleanFlightNumber }; // Corrigido: flight_iata em vez de flight_number
+      const today = new Date().toISOString().split('T')[0]; // Data default: hoje
+      params.flight_date = date || today; // Corrigido: sempre incluir flight_date, com default hoje
+
+      const endpoint = 'flights'; // Corrigido: usar 'flights' plural para todos
       console.log(`Buscando voo no endpoint /${endpoint}:`, params);
 
       const response = await this.makeRequest(endpoint, params);
-      console.log('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+      console.log('Resposta da API (/flights):', JSON.stringify(response, null, 2));
 
       // caso a API retorne erro sem voo
       if (response?.data?.error || (response?.data && typeof response.data === 'string' && response.data.includes('Nenhum dado foi encontrado'))) {
         console.warn('⚠ Voo não encontrado, retornando 200 com sucesso: false');
-        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+        console.warn('Resposta da API (/flights):', JSON.stringify(response, null, 2));
         console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
         return null; // vai gerar o 404 "Voo não encontrado"
       }
 
       // Verificar se a resposta indica que não há voo na data especificada
       if (response?.success === false && response?.data && typeof response.data === 'string') {
-        if (response.data.includes('Nenhum dado foi encontrado') || 
+        if (response.data.includes('Nenhum dado foi encontrado') ||
             response.data.includes('verifique o número do voo') ||
             response.data.includes('tente novamente')) {
           console.warn('⚠ Voo não encontrado na data especificada');
@@ -509,28 +550,29 @@ class GoFlightLabsService {
       throw error;
     }
   }
-  // Método para validar se a resposta da API tem o formato esperado
+
+  // Método para validar se a resposta da API tem o formato esperado - Melhorado com mais checks
   validateFlightResponse(data: any): boolean {
     if (!data) return false;
-    
+
     // Verifica se é o novo formato da API com campos em maiúsculas
     const hasNewApiFormat = data.DATE && data.FROM && data.TO && data.STD && data.STA;
     if (hasNewApiFormat) {
       console.log('Detectado novo formato da API com campos em maiúsculas');
       return true;
     }
-    
+
     // Verifica se os campos essenciais existem no formato antigo
     const hasRequiredFields = data.departure && data.departure.scheduled && data.arrival && data.flight && data.airline;
     // Verifica se os campos essenciais existem no formato novo
     const hasNewFormatFields = (data.dep_iata || data.dep_icao) && (data.arr_iata || data.arr_icao) && (data.flight_iata || data.flight_icao || data.flight_number) && (data.airline_iata || data.airline_icao);
-    
+
     // Se estiver no formato novo, podemos adaptar
     if (hasNewFormatFields) {
       return true;
     }
-    
-    if (!hasRequiredFields && !hasNewApiFormat) {
+
+    if (!hasRequiredFields && !hasNewApiFormat && !hasNewFormatFields) {
       console.error('Campos obrigatórios ausentes na resposta:', {
         hasDeparture: !!data.departure,
         hasDepartureScheduled: data.departure ? !!data.departure.scheduled : false,
@@ -554,10 +596,12 @@ class GoFlightLabsService {
         hasSTD: !!data.STD,
         hasSTA: !!data.STA
       });
+      return false; // Explicitamente false se falhar
     }
-    
+
     return hasRequiredFields || hasNewFormatFields || hasNewApiFormat;
   }
+
   async getAirportSchedules(airportIata: string, type: string = 'departure'): Promise<any[]> {
     try {
       // Mesmo endpoint 'flights' para ambos os tipos
@@ -579,7 +623,7 @@ class GoFlightLabsService {
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
         console.log('Detectado formato antigo da API (array em data) para horários de aeroporto');
         // Processar cada voo no array
-        for (const flight of response.data){
+        for (const flight of response.data) {
           if (this.validateFlightResponse(flight)) {
             // Já está no formato esperado
             rawFlights.push(flight);
@@ -592,7 +636,7 @@ class GoFlightLabsService {
       } else if (Array.isArray(response) && response.length > 0) {
         console.log('Detectado formato da API como array direto para horários de aeroporto');
         // Processar cada voo no array
-        for (const flight of response){
+        for (const flight of response) {
           if (this.validateFlightResponse(flight)) {
             // Já está no formato esperado
             rawFlights.push(flight);
@@ -618,7 +662,7 @@ class GoFlightLabsService {
         return [];
       }
       console.log(`Processando ${rawFlights.length} voos válidos`);
-      const flights = rawFlights.map((flight: any)=>{
+      const flights = rawFlights.map((flight: any) => {
         try {
           return this.transformFlightData(flight);
         } catch (error) {
@@ -634,6 +678,7 @@ class GoFlightLabsService {
       throw error;
     }
   }
+
   async saveFlightData(rawData: any, transformedData: any): Promise<void> {
     try {
       const { error } = await this.supabase.from('flight_data').upsert({
@@ -672,26 +717,27 @@ class GoFlightLabsService {
       console.error('Erro ao salvar no banco:', error);
     }
   }
+
   async saveAirportSchedules(airportIata: string, type: string, flights: any[]): Promise<void> {
     try {
-      const schedules = flights.map((flight: any)=>({
-          airport_iata: airportIata,
-          airport_icao: type === 'departure' ? flight.departure.icao : flight.arrival.icao,
-          airport_name: type === 'departure' ? flight.departure.airport : flight.arrival.airport,
-          schedule_type: type,
-          flight_number: flight.flight.iata || flight.flight.number,
-          airline_iata: flight.airline.iata,
-          airline_name: flight.airline.name,
-          destination_airport_iata: type === 'departure' ? flight.arrival.iata : null,
-          origin_airport_iata: type === 'arrival' ? flight.departure.iata : null,
-          scheduled_time: type === 'departure' ? flight.departure.scheduled : flight.arrival.scheduled,
-          estimated_time: type === 'departure' ? flight.departure.estimated : flight.arrival.estimated,
-          actual_time: type === 'departure' ? flight.departure.actual : flight.arrival.actual,
-          terminal: type === 'departure' ? flight.departure.terminal : flight.arrival.terminal,
-          gate: type === 'departure' ? flight.departure.gate : flight.arrival.gate,
-          status: flight.status,
-          raw_data: flight
-        }));
+      const schedules = flights.map((flight: any) => ({
+        airport_iata: airportIata,
+        airport_icao: type === 'departure' ? flight.departure?.icao || null : flight.arrival?.icao || null,
+        airport_name: type === 'departure' ? flight.departure?.airport || null : flight.arrival?.airport || null,
+        schedule_type: type,
+        flight_number: flight.flight?.iata || flight.flight?.number || null,
+        airline_iata: flight.airline?.iata || null,
+        airline_name: flight.airline?.name || null,
+        destination_airport_iata: type === 'departure' ? flight.arrival?.iata || null : null,
+        origin_airport_iata: type === 'arrival' ? flight.departure?.iata || null : null,
+        scheduled_time: type === 'departure' ? flight.departure?.scheduled || null : flight.arrival?.scheduled || null,
+        estimated_time: type === 'departure' ? flight.departure?.estimated || null : flight.arrival?.estimated || null,
+        actual_time: type === 'departure' ? flight.departure?.actual || null : flight.arrival?.actual || null,
+        terminal: type === 'departure' ? flight.departure?.terminal || null : flight.arrival?.terminal || null,
+        gate: type === 'departure' ? flight.departure?.gate || null : flight.arrival?.gate || null,
+        status: flight.status || null,
+        raw_data: flight
+      }));
       const { error } = await this.supabase.from('airport_schedules').upsert(schedules, {
         onConflict: 'airport_iata,flight_number,scheduled_time'
       });
@@ -703,14 +749,15 @@ class GoFlightLabsService {
     }
   }
 }
-serve(async (req: Request)=>{
+
+serve(async (req: Request) => {
   console.log('🚀 Edge Function recebeu requisição:', {
     method: req.method,
     url: req.url,
     headers: Object.fromEntries(req.headers.entries()),
     timestamp: new Date().toISOString()
   });
-  
+
   // Handle CORS
   if (req.method === 'OPTIONS') {
     console.log('✅ Respondendo a requisição OPTIONS (CORS)');
@@ -722,7 +769,7 @@ serve(async (req: Request)=>{
     const { method, url } = req;
     const urlObj = new URL(url);
     const path = urlObj.pathname;
-    
+
     console.log('📋 Detalhes da requisição:', {
       method,
       path,
@@ -741,13 +788,13 @@ serve(async (req: Request)=>{
     const flightService = new GoFlightLabsService(accessKey, supabaseUrl, supabaseServiceKey);
     if (method === 'GET' || method === 'POST') {
       let flightNumber, airportIata, scheduleType, date;
-      
+
       if (method === 'GET') {
         flightNumber = urlObj.searchParams.get('flight');
         airportIata = urlObj.searchParams.get('airport');
         scheduleType = urlObj.searchParams.get('type');
         date = urlObj.searchParams.get('date');
-        
+
         console.log('📥 Parâmetros GET extraídos:', {
           flightNumber, airportIata, scheduleType, date
         });
@@ -755,12 +802,12 @@ serve(async (req: Request)=>{
         console.log('📦 Processando requisição POST...');
         const body = await req.json();
         console.log('📄 Body da requisição POST:', body);
-        
+
         flightNumber = body.flight_number;
         airportIata = body.airport;
         scheduleType = body.type;
         date = body.date;
-        
+
         console.log('📥 Parâmetros POST extraídos:', {
           flightNumber, airportIata, scheduleType, date
         });
@@ -768,16 +815,16 @@ serve(async (req: Request)=>{
       // Buscar informações de um voo específico
       if (flightNumber) {
         console.log('🔍 Buscando informações do voo:', { flightNumber, date });
-        
+
         try {
           const flightData = await flightService.getFlightInfo(flightNumber, date || undefined);
-          
+
           console.log('✅ Dados do voo obtidos:', {
             hasData: !!flightData,
             flightNumber: flightData?.flightNumber,
             status: flightData?.status
           });
-          
+
           if (!flightData) {
             console.log('⚠️ Voo não encontrado, retornando 200 com success: false');
             return new Response(JSON.stringify({
@@ -792,7 +839,7 @@ serve(async (req: Request)=>{
               }
             });
           }
-          
+
           console.log('🎉 Retornando dados do voo com sucesso');
           return new Response(JSON.stringify({
             data: flightData
@@ -808,7 +855,7 @@ serve(async (req: Request)=>{
             message: flightError instanceof Error ? flightError.message : String(flightError),
             stack: flightError instanceof Error ? flightError.stack : undefined
           });
-          
+
           return new Response(JSON.stringify({
             error: 'Erro ao buscar informações do voo',
             message: flightError instanceof Error ? flightError.message : String(flightError)
