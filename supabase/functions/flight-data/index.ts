@@ -363,7 +363,7 @@ class GoFlightLabsService {
         const match = dateStr.match(/(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})/);
         if (match) {
           const [, day, monthName, year] = match;
-          const month = monthsPT[monthName.toLowerCase()];
+          const month = monthsPT[monthName.toLowerCase() as keyof typeof monthsPT];
           if (month !== undefined) {
             const date = new Date(Number(year), month, Number(day));
             return date.toISOString().split('T')[0];
@@ -380,7 +380,7 @@ class GoFlightLabsService {
       const matchEN = dateStr.match(/(\d{1,2})\s+(\w{3})\s+(\d{4})/);
       if (matchEN) {
         const [, day, monthName, year] = matchEN;
-        const month = monthsEN[monthName.toLowerCase()];
+        const month = monthsEN[monthName.toLowerCase() as keyof typeof monthsEN];
         if (month !== undefined) {
           const date = new Date(Number(year), month, Number(day));
           return date.toISOString().split('T')[0];
@@ -493,16 +493,23 @@ class GoFlightLabsService {
             response.data.includes('Invalid flight') ||
             response.data.includes('Try again')))) {
         console.warn('⚠ Voo não encontrado');
-        console.warn('Resposta da API (/flights):', JSON.stringify(response, null, 2));
+        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
         console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
-        return null;
+        
+        // Criar erro específico com informações úteis
+        const error = new Error(`Voo ${flightNumber} não encontrado na data ${date || 'hoje'}. Verifique se o voo existe nesta data.`);
+        error.name = 'FlightNotFoundError';
+        throw error;
       }
 
-      // garantir que veio algo
+      // Verificar se não há dados válidos
       if (!response?.data) {
         console.warn('Nenhum registro válido retornado');
-        console.warn('Resposta da API (flights):', JSON.stringify(response, null, 2));
-        return null;
+        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
+        
+        const error = new Error(`Nenhum dado encontrado para o voo ${flightNumber}. Verifique se o número do voo está correto.`);
+        error.name = 'NoDataError';
+        throw error;
       }
 
       let rawData;
@@ -514,7 +521,9 @@ class GoFlightLabsService {
 
       if (!rawData) {
         console.error('Não foi possível adaptar a resposta da API');
-        return null;
+        const error = new Error(`Dados do voo ${flightNumber} estão em formato inválido. Tente novamente mais tarde.`);
+        error.name = 'InvalidDataFormatError';
+        throw error;
       }
 
       const flightData = this.transformFlightData(rawData);
@@ -523,7 +532,16 @@ class GoFlightLabsService {
       return flightData;
     } catch (error) {
       console.error('Erro ao buscar informações do voo:', error);
-      throw error;
+      
+      // Se já é um erro customizado, manter a mensagem
+      if (error instanceof Error && error.name && error.name.includes('Error')) {
+        throw error;
+      }
+      
+      // Para outros erros, criar mensagem mais amigável
+      const friendlyError = new Error(`Erro ao buscar voo ${flightNumber}: ${error instanceof Error ? error.message : String(error)}`);
+      friendlyError.name = 'FlightSearchError';
+      throw friendlyError;
     }
   }
   // Método para validar se a resposta da API tem o formato esperado
@@ -788,7 +806,8 @@ serve(async (req: Request)=>{
             return new Response(JSON.stringify({
               success: false,
               data: null,
-              error: 'Voo não encontrado'
+              error: 'Voo não encontrado',
+              message: `Voo ${flightNumber} não encontrado na data ${date || 'hoje'}. Verifique se o voo existe nesta data.`
             }), {
               status: 200,
               headers: {
@@ -814,11 +833,34 @@ serve(async (req: Request)=>{
             stack: flightError instanceof Error ? flightError.stack : undefined
           });
           
+          // Determinar status HTTP baseado no tipo de erro
+          let statusCode = 500;
+          let errorType = 'Erro interno do servidor';
+          
+          if (flightError instanceof Error) {
+            if (flightError.name === 'FlightNotFoundError') {
+              statusCode = 404;
+              errorType = 'Voo não encontrado';
+            } else if (flightError.name === 'NoDataError') {
+              statusCode = 404;
+              errorType = 'Dados não encontrados';
+            } else if (flightError.name === 'InvalidDataFormatError') {
+              statusCode = 422;
+              errorType = 'Formato de dados inválido';
+            } else if (flightError.name === 'FlightSearchError') {
+              statusCode = 400;
+              errorType = 'Erro na busca do voo';
+            }
+          }
+          
           return new Response(JSON.stringify({
-            error: 'Erro ao buscar informações do voo',
-            message: flightError instanceof Error ? flightError.message : String(flightError)
+            success: false,
+            error: errorType,
+            message: flightError instanceof Error ? flightError.message : String(flightError),
+            flightNumber: flightNumber,
+            date: date || 'hoje'
           }), {
-            status: 500,
+            status: statusCode,
             headers: {
               ...corsHeaders,
               'Content-Type': 'application/json'

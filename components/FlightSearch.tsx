@@ -17,7 +17,7 @@ export default function FlightSearch({
   value, 
   onChange, 
   date, 
-  placeholder = "Ex: AA100, G31610", 
+  placeholder = "Ex: 3359, 1900", 
   className = "" 
 }: FlightSearchProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -48,7 +48,7 @@ export default function FlightSearch({
 
   // Buscar voo quando o usuário para de digitar
   useEffect(() => {
-    if (query && query.length >= 3 && /^[A-Z]{1,3}\d{1,4}$/i.test(query.trim())) {
+    if (query && query.length >= 3 && /^\d{1,4}$/.test(query.trim())) {
       const searchDate = date || new Date().toISOString().split('T')[0]
       searchFlight(query.trim(), searchDate)
     }
@@ -63,7 +63,8 @@ export default function FlightSearch({
   }, [flightData, onChange])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value.toUpperCase()
+    // Permitir apenas números
+    const newValue = e.target.value.replace(/[^0-9]/g, '')
     setQuery(newValue)
     onChange(newValue)
     setIsOpen(true)
@@ -229,10 +230,18 @@ export default function FlightSearch({
 
       {/* Erro */}
       {error && (
-        <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-md">
-          <div className="flex items-center space-x-2">
-            <AlertCircle className="w-4 h-4 text-red-600" />
-            <span className="text-sm text-red-600">{error}</span>
+        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-800">Erro ao buscar voo</p>
+              <p className="text-sm text-red-700 mt-1">{error}</p>
+              <div className="mt-2 text-xs text-red-600">
+                <p>• Verifique se o número do voo está correto</p>
+                <p>• Confirme se a data está correta</p>
+                <p>• Tente novamente em alguns minutos</p>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -156,14 +156,17 @@ export default function NewQuotePage() {
   
   // Função para buscar informações de voo e ajustar data/hora automaticamente
   const handleFlightSearch = async () => {
-    if (!formData.airline || !formData.flight_number) {
+    if (!formData.flight_number) {
       return
     }
     
     try {
-      const flightNumber = `${formData.airline}${formData.flight_number}`
-      // Usar a data do formulário em vez da data atual
-      const searchDate = formData.pickup_date || new Date().toISOString().split('T')[0]
+      // API agora espera apenas o número do voo (sem prefixo IATA)
+      const flightNumber = formData.flight_number
+      // Usar a data do formulário formatada para YYYY-MM-DD
+      const searchDate = formData.pickup_date ? 
+        new Date(formData.pickup_date).toISOString().split('T')[0] : 
+        new Date().toISOString().split('T')[0]
       
       console.log('🔍 Buscando informações do voo:', {
         flightNumber,
@@ -200,13 +203,13 @@ export default function NewQuotePage() {
   // useEffect para buscar informações de voo automaticamente
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (formData.airline && formData.flight_number && formData.airline.length >= 2 && formData.flight_number.length >= 3) {
+      if (formData.flight_number && formData.flight_number.length >= 3) {
         handleFlightSearch()
       }
     }, 1000) // Debounce de 1 segundo
     
     return () => clearTimeout(timer)
-  }, [formData.airline, formData.flight_number])
+  }, [formData.flight_number])
   
   const { getPrice, loading: pricingLoading } = useZonePricing()
   const { data: availableExtras, isLoading: extrasLoading } = useExtras()
@@ -1277,13 +1280,13 @@ export default function NewQuotePage() {
                               onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
                               placeholder="Ex: LATAM, GOL, Azul..."
                             />
-                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                            {isLoadingFlight && formData.flight_number && (
                               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
                             )}
-                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightData && !isLoadingFlight && formData.flight_number && (
                               <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
                             )}
-                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightError && !isLoadingFlight && formData.flight_number && (
                               <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
                             )}
                           </div>
@@ -1298,16 +1301,20 @@ export default function NewQuotePage() {
                               type="text"
                               className="input-standard w-full pr-10"
                               value={formData.flight_number}
-                              onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
-                              placeholder="Ex: LA3090, G31234..."
+                              onChange={(e) => {
+                                // Permitir apenas números
+                                const value = e.target.value.replace(/[^0-9]/g, '')
+                                setFormData(prev => ({...prev, flight_number: value}))
+                              }}
+                              placeholder="Ex: 3090, 1234..."
                             />
-                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                            {isLoadingFlight && formData.flight_number && (
                               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
                             )}
-                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightData && !isLoadingFlight && formData.flight_number && (
                               <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
                             )}
-                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightError && !isLoadingFlight && formData.flight_number && (
                               <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
                             )}
                           </div>
@@ -1322,9 +1329,20 @@ export default function NewQuotePage() {
                               )}
                             </div>
                           )}
-                          {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
-                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                              ❌ Erro ao buscar voo: {flightError}
+                          {flightError && !isLoadingFlight && formData.flight_number && (
+                            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                              <div className="flex items-start space-x-2">
+                                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-red-800">Erro ao buscar voo</p>
+                                  <p className="text-sm text-red-700 mt-1">{flightError}</p>
+                                  <div className="mt-2 text-xs text-red-600">
+                                    <p>• Verifique se o número do voo está correto</p>
+                                    <p>• Confirme se a data está correta</p>
+                                    <p>• Tente novamente em alguns minutos</p>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1442,13 +1460,13 @@ export default function NewQuotePage() {
                               onChange={(e) => setFormData(prev => ({...prev, airline: e.target.value}))}
                               placeholder="Ex: LATAM, GOL, Azul..."
                             />
-                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                            {isLoadingFlight && formData.flight_number && (
                               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
                             )}
-                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightData && !isLoadingFlight && formData.flight_number && (
                               <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
                             )}
-                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightError && !isLoadingFlight && formData.flight_number && (
                               <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
                             )}
                           </div>
@@ -1463,16 +1481,20 @@ export default function NewQuotePage() {
                               type="text"
                               className="input-standard w-full pr-10"
                               value={formData.flight_number}
-                              onChange={(e) => setFormData(prev => ({...prev, flight_number: e.target.value}))}
-                              placeholder="Ex: LA3090, G31234..."
+                              onChange={(e) => {
+                                // Permitir apenas números
+                                const value = e.target.value.replace(/[^0-9]/g, '')
+                                setFormData(prev => ({...prev, flight_number: value}))
+                              }}
+                              placeholder="Ex: 3090, 1234..."
                             />
-                            {isLoadingFlight && formData.airline && formData.flight_number && (
+                            {isLoadingFlight && formData.flight_number && (
                               <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-blue-500" />
                             )}
-                            {flightData && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightData && !isLoadingFlight && formData.flight_number && (
                               <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-green-500" />
                             )}
-                            {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
+                            {flightError && !isLoadingFlight && formData.flight_number && (
                               <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
                             )}
                           </div>
@@ -1487,9 +1509,20 @@ export default function NewQuotePage() {
                               )}
                             </div>
                           )}
-                          {flightError && !isLoadingFlight && formData.airline && formData.flight_number && (
-                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
-                              ❌ Erro ao buscar voo: {flightError}
+                          {flightError && !isLoadingFlight && formData.flight_number && (
+                            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                              <div className="flex items-start space-x-2">
+                                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-red-800">Erro ao buscar voo</p>
+                                  <p className="text-sm text-red-700 mt-1">{flightError}</p>
+                                  <div className="mt-2 text-xs text-red-600">
+                                    <p>• Verifique se o número do voo está correto</p>
+                                    <p>• Confirme se a data está correta</p>
+                                    <p>• Tente novamente em alguns minutos</p>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>

@@ -164,7 +164,23 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         timestamp: new Date().toISOString()
       })
       
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar voo'
+      // Tratar diferentes tipos de erro com mensagens mais específicas
+      let errorMessage = 'Erro ao buscar voo'
+      
+      if (err instanceof Error) {
+        if (err.name === 'FlightNotFoundError') {
+          errorMessage = `Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`
+        } else if (err.name === 'NoDataError') {
+          errorMessage = `Nenhum dado encontrado para o voo ${flightNumber}. Verifique se o número do voo está correto.`
+        } else if (err.name === 'InvalidDataFormatError') {
+          errorMessage = `Dados do voo ${flightNumber} estão em formato inválido. Tente novamente mais tarde.`
+        } else if (err.name === 'FlightSearchError') {
+          errorMessage = err.message
+        } else {
+          errorMessage = err.message
+        }
+      }
+      
       setError(errorMessage)
       return null
     } finally {
