@@ -473,14 +473,21 @@ class GoFlightLabsService {
     return original;
   }
 
-  async getFlightInfo(flightNumber: string, date?: string): Promise<any> {
+  async getFlightInfo(flightNumber: string, date?: string, airline?: string): Promise<any> {
     try {
       // Processar o número do voo com mapeamento dinâmico
       const cleanFlightNumber = this.extractFlightNumber(flightNumber);
-      const params: any = { flight_number: cleanFlightNumber };
+      // Determinar código da companhia aérea
+      const airlineCode = airline ? airline.toUpperCase() : 'LA'; // fallback para LATAM
+      
+      const params: any = { 
+        delay: 0, // buscar qualquer atraso (incluindo 0)
+        type: 'departures', // tipo obrigatório
+        flight_iata: `${airlineCode}${cleanFlightNumber}` // usar companhia do usuário
+      };
       if (date) params.date = date;
 
-      const endpoint = 'flight'; // usar singular conforme documentação oficial
+      const endpoint = 'flight_delays'; // usar endpoint que funciona
       console.log(`Buscando voo no endpoint /${endpoint}:`, params);
 
       const response = await this.makeRequest(endpoint, params);
@@ -783,9 +790,10 @@ serve(async (req: Request)=>{
         airportIata = body.airport;
         scheduleType = body.type;
         date = body.date;
+        const airline = body.airline;
         
         console.log('📥 Parâmetros POST extraídos:', {
-          flightNumber, airportIata, scheduleType, date
+          flightNumber, airportIata, scheduleType, date, airline
         });
       }
       // Buscar informações de um voo específico
@@ -793,7 +801,7 @@ serve(async (req: Request)=>{
         console.log('🔍 Buscando informações do voo:', { flightNumber, date });
         
         try {
-          const flightData = await flightService.getFlightInfo(flightNumber, date || undefined);
+          const flightData = await flightService.getFlightInfo(flightNumber, date || undefined, airline);
           
           console.log('✅ Dados do voo obtidos:', {
             hasData: !!flightData,

@@ -46,7 +46,7 @@ export interface UseFlightDataReturn {
   smartScheduling: SmartSchedulingResult | null
   
   // Ações
-  searchFlight: (flightNumber: string, date: string) => Promise<FlightData | null>
+  searchFlight: (flightNumber: string, date: string, airline?: string) => Promise<FlightData | null>
   getRealTimeStatus: (flightNumber: string, date: string) => Promise<FlightData | null>
   getAirportArrivals: (airport: string, date: string) => Promise<FlightData[]>
   calculatePickupTime: (flight: FlightData, serviceType: 'arrival' | 'departure', options?: PickupTimeOptions) => Promise<Date>
@@ -101,7 +101,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
   }, [autoRefresh, refreshInterval, flightData])
 
   // Buscar voo específico
-  const searchFlight = useCallback(async (flightNumber: string, date: string): Promise<FlightData | null> => {
+  const searchFlight = useCallback(async (flightNumber: string, date: string, airline?: string): Promise<FlightData | null> => {
     console.log('🔍 Iniciando busca de voo:', {
       flightNumber,
       date,
@@ -115,7 +115,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     
     try {
       console.log('📞 Chamando goFlightLabsService.getFlightInfo...')
-      const flight = await goFlightLabsService.getFlightInfo(flightNumber, date)
+      const flight = await goFlightLabsService.getFlightInfo(flightNumber, date, airline)
       
       console.log('✅ Resposta recebida do serviço:', {
         hasFlight: !!flight,
