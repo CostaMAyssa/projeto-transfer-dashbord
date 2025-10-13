@@ -482,8 +482,7 @@ class GoFlightLabsService {
       
       const params: any = { 
         delay: 0, // buscar qualquer atraso (incluindo 0)
-        type: 'departures', // tipo obrigatório
-        flight_iata: `${airlineCode}${cleanFlightNumber}` // usar companhia do usuário
+        type: 'departures' // tipo obrigatório
       };
       if (date) params.date = date;
 
@@ -491,41 +490,29 @@ class GoFlightLabsService {
       console.log(`Buscando voo no endpoint /${endpoint}:`, params);
 
       const response = await this.makeRequest(endpoint, params);
-      console.log('Resposta da API (/flights):', JSON.stringify(response, null, 2));
-
-      // Verificar se a API retornou erro ou dados vazios
-      if (response?.data?.error || 
-          (response?.data && typeof response.data === 'string' && 
-           (response.data.includes('No data found') || 
-            response.data.includes('Invalid flight') ||
-            response.data.includes('Try again')))) {
-        console.warn('⚠ Voo não encontrado');
-        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
-        console.warn(`Processado: "${cleanFlightNumber}" (original: "${flightNumber}")`);
-        
-        // Criar erro específico com informações úteis
-        const error = new Error(`Voo ${flightNumber} não encontrado na data ${date || 'hoje'}. Verifique se o voo existe nesta data.`);
-        error.name = 'FlightNotFoundError';
-        throw error;
+      console.log('Resposta da API (/flight_delays):', JSON.stringify(response, null, 2));
+      
+      // Filtrar o voo específico nos resultados
+      const targetFlightIata = `${airlineCode}${cleanFlightNumber}`;
+      let flightData = null;
+      
+      if (response?.data && Array.isArray(response.data)) {
+        flightData = response.data.find(flight => 
+          flight.flight_iata === targetFlightIata || 
+          flight.flight_number === cleanFlightNumber
+        );
       }
-
-      // Verificar se não há dados válidos
-      if (!response?.data) {
-        console.warn('Nenhum registro válido retornado');
-        console.warn('Resposta da API (/flight):', JSON.stringify(response, null, 2));
-        
-        const error = new Error(`Nenhum dado encontrado para o voo ${flightNumber}. Verifique se o número do voo está correto.`);
-        error.name = 'NoDataError';
-        throw error;
+      
+      if (!flightData) {
+        console.warn(`⚠ Voo ${targetFlightIata} não encontrado nos resultados`);
+        return null;
       }
+      
+      console.log(`✅ Voo ${targetFlightIata} encontrado:`, flightData);
 
-      let rawData;
-      if (Array.isArray(response.data) && response.data.length > 0) {
-        rawData = this.adaptApiResponse(response.data[0]);
-      } else if (typeof response.data === 'object') {
-        rawData = this.adaptApiResponse(response.data);
-      }
-
+      // Processar os dados do voo encontrado
+      const rawData = this.adaptApiResponse(flightData);
+      
       if (!rawData) {
         console.error('Não foi possível adaptar a resposta da API');
         const error = new Error(`Dados do voo ${flightNumber} estão em formato inválido. Tente novamente mais tarde.`);
@@ -533,10 +520,10 @@ class GoFlightLabsService {
         throw error;
       }
 
-      const flightData = this.transformFlightData(rawData);
-      await this.saveFlightData(rawData, flightData);
+      const transformedFlightData = this.transformFlightData(rawData);
+      await this.saveFlightData(rawData, transformedFlightData);
 
-      return flightData;
+      return transformedFlightData;
     } catch (error) {
       console.error('Erro ao buscar informações do voo:', error);
       
@@ -770,13 +757,14 @@ serve(async (req: Request)=>{
     }
     const flightService = new GoFlightLabsService(accessKey, supabaseUrl, supabaseServiceKey);
     if (method === 'GET' || method === 'POST') {
-      let flightNumber, airportIata, scheduleType, date;
+      let flightNumber, airportIata, scheduleType, date, airline;
       
       if (method === 'GET') {
         flightNumber = urlObj.searchParams.get('flight');
         airportIata = urlObj.searchParams.get('airport');
         scheduleType = urlObj.searchParams.get('type');
         date = urlObj.searchParams.get('date');
+        airline = urlObj.searchParams.get('airline') || undefined;
         
         console.log('📥 Parâmetros GET extraídos:', {
           flightNumber, airportIata, scheduleType, date
@@ -790,7 +778,7 @@ serve(async (req: Request)=>{
         airportIata = body.airport;
         scheduleType = body.type;
         date = body.date;
-        const airline = body.airline;
+        airline = body.airline;
         
         console.log('📥 Parâmetros POST extraídos:', {
           flightNumber, airportIata, scheduleType, date, airline
