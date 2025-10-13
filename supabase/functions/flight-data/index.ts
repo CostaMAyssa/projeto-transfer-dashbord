@@ -601,7 +601,11 @@ class GoFlightLabsService {
       console.log(`✅ Voo ${targetFlightIata} encontrado:`, flightData);
 
       // Processar os dados do voo encontrado
+      console.log('🔍 Dados brutos do voo encontrado:', JSON.stringify(flightData, null, 2));
+      
       const rawData = this.adaptApiResponse(flightData);
+      
+      console.log('🔄 Dados após adaptApiResponse:', JSON.stringify(rawData, null, 2));
       
       if (!rawData) {
         console.error('Não foi possível adaptar a resposta da API');
