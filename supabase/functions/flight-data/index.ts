@@ -25,9 +25,10 @@ interface FlightParams {
 
 class GoFlightLabsService {
   accessKey: string;
-  baseUrl = 'https://www.goflightlabs.com';
+  baseUrl = 'https://www.goflightlabs.com'; // URL base correta conforme documentação
   supabase: any;
-  constructor(accessKey: string, supabaseUrl: string, supabaseKey: string){
+  
+  constructor(accessKey: string, supabaseUrl: string, supabaseKey: string) {
     this.accessKey = accessKey;
     this.supabase = createClient(supabaseUrl, supabaseKey);
   }
@@ -35,15 +36,24 @@ class GoFlightLabsService {
     const url = new URL(`${this.baseUrl}/${endpoint}`);
     // Adiciona access_key como primeiro parâmetro para garantir formato correto
     url.searchParams.append('access_key', this.accessKey);
+    
     // Adiciona os demais parâmetros da requisição
-    Object.entries(params).forEach(([key, value])=>{
-      url.searchParams.append(key, String(value));
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        url.searchParams.append(key, String(value));
+      }
     });
     
     console.log(`Fazendo requisição para: ${url.toString()}`);
     
     try {
-      const response = await fetch(url.toString());
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Supabase-Edge-Function/1.0'
+        }
+      });
       
       if (!response.ok) {
         console.error(`❌ Erro na API GoFlightLabs: ${response.status} - ${response.statusText}`);
@@ -535,12 +545,17 @@ class GoFlightLabsService {
             const airportFlights = await this.getAirportSchedules(airport, 'departure');
             
             if (airportFlights && airportFlights.length > 0) {
-              // Procurar o voo específico nos resultados do aeroporto
-              const foundFlight = airportFlights.find(flight => 
-                flight.flightNumber === cleanFlightNumber ||
-                flight.flightNumber === targetFlightIata ||
-                (flight.flightNumber && flight.flightNumber.includes(cleanFlightNumber))
-              );
+              // Procurar o voo específico nos resultados do aeroporto usando dados brutos
+              const foundFlight = airportFlights.find(flight => {
+                // Verificar se é o voo que estamos procurando
+                const flightIata = flight.flight_iata || '';
+                const flightNumber = flight.flight_number || '';
+                
+                return flightIata === targetFlightIata || 
+                       flightNumber === cleanFlightNumber ||
+                       flightIata.includes(cleanFlightNumber) ||
+                       flightNumber.includes(cleanFlightNumber);
+              });
               
               if (foundFlight) {
                 console.log(`✅ Voo ${cleanFlightNumber} encontrado no aeroporto ${airport}`);
@@ -695,8 +710,10 @@ class GoFlightLabsService {
           return null;
         }
       }).filter(Boolean);
-      // Salvar horários do aeroporto no banco
-      await this.saveAirportSchedules(airportIata, type, rawFlights);
+      // Salvar horários do aeroporto no banco (usando dados brutos)
+      if (rawFlights.length > 0) {
+        await this.saveAirportSchedules(airportIata, type, rawFlights);
+      }
       return flights;
     } catch (error) {
       console.error('Erro ao buscar horários do aeroporto:', error);
@@ -743,29 +760,51 @@ class GoFlightLabsService {
   }
   async saveAirportSchedules(airportIata: string, type: string, flights: any[]): Promise<void> {
     try {
-      const schedules = flights.map((flight: any)=>({
+      if (!flights || flights.length === 0) {
+        console.log('Nenhum voo para salvar nos horários do aeroporto');
+        return;
+      }
+
+      const schedules = flights.map((flight: any) => {
+        // Verificar se o voo tem os campos necessários
+        if (!flight.flight_iata && !flight.flight_number) {
+          console.warn('Voo sem identificação válida:', flight);
+          return null;
+        }
+
+        return {
           airport_iata: airportIata,
-          airport_icao: type === 'departure' ? flight.departure.icao : flight.arrival.icao,
-          airport_name: type === 'departure' ? flight.departure.airport : flight.arrival.airport,
+          airport_icao: type === 'departure' ? (flight.dep_icao || null) : (flight.arr_icao || null),
+          airport_name: type === 'departure' ? (flight.dep_iata || airportIata) : (flight.arr_iata || airportIata),
           schedule_type: type,
-          flight_number: flight.flight.iata || flight.flight.number,
-          airline_iata: flight.airline.iata,
-          airline_name: flight.airline.name,
-          destination_airport_iata: type === 'departure' ? flight.arrival.iata : null,
-          origin_airport_iata: type === 'arrival' ? flight.departure.iata : null,
-          scheduled_time: type === 'departure' ? flight.departure.scheduled : flight.arrival.scheduled,
-          estimated_time: type === 'departure' ? flight.departure.estimated : flight.arrival.estimated,
-          actual_time: type === 'departure' ? flight.departure.actual : flight.arrival.actual,
-          terminal: type === 'departure' ? flight.departure.terminal : flight.arrival.terminal,
-          gate: type === 'departure' ? flight.departure.gate : flight.arrival.gate,
-          status: flight.status,
+          flight_number: flight.flight_iata || flight.flight_number,
+          airline_iata: flight.airline_iata || 'UNK',
+          airline_name: flight.airline_name || flight.airline_iata || 'Unknown',
+          destination_airport_iata: type === 'departure' ? (flight.arr_iata || null) : null,
+          origin_airport_iata: type === 'arrival' ? (flight.dep_iata || null) : null,
+          scheduled_time: flight.dep_time || flight.arr_time || null,
+          estimated_time: flight.dep_estimated || flight.arr_estimated || null,
+          actual_time: flight.dep_actual || flight.arr_actual || null,
+          terminal: flight.dep_terminal || flight.arr_terminal || null,
+          gate: flight.dep_gate || flight.arr_gate || null,
+          status: flight.status || 'scheduled',
           raw_data: flight
-        }));
+        };
+      }).filter(Boolean); // Remove entradas nulas
+
+      if (schedules.length === 0) {
+        console.log('Nenhum horário válido para salvar');
+        return;
+      }
+
       const { error } = await this.supabase.from('airport_schedules').upsert(schedules, {
         onConflict: 'airport_iata,flight_number,scheduled_time'
       });
+      
       if (error) {
         console.error('Erro ao salvar horários do aeroporto:', error);
+      } else {
+        console.log(`✅ Salvos ${schedules.length} horários do aeroporto ${airportIata}`);
       }
     } catch (error) {
       console.error('Erro ao salvar horários no banco:', error);
