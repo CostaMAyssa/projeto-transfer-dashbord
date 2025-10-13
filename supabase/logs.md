@@ -1,174 +1,148 @@
-Perfeito — vou te mandar um *prompt pronto* (em português) que você pode colar na sua IA (ou no seu sistema de pair-programming) explicando todo o contexto do erro e pedindo a implementação da *Opção 1* (usar live.updated como fallback para horário de partida). O prompt inclui: problema, logs relevantes, payload de exemplo, regras de fallback, schema de saída esperado, instruções de logging e testes.
-
-Cole o texto abaixo direto na sua IA:
-
----
-
-*PROMPT (cole na sua IA / assistant de dev):*
-
-Preciso que você corrija a função transformFlightData do serviço GoFlightLabsService para tratar voos que não possuem horário de partida (departure.scheduled, departure.estimated, departure.actual) — usar a *Opção 1*: **usar live.updated como fallback** ao invés de lançar erro. Vou descrever o erro, o comportamento atual, exemplos de payloads e exatamente o que espero que a função faça.
-
-*Contexto & erro observado*
-
-* Erro atual (logs):
-
-  
-  Error: Horário de partida não encontrado nos dados do voo
-  at GoFlightLabsService.transformFlightData (index.ts:158:13)
-  
-* Causa: a função transformFlightData assume que departure.scheduled (ou estimated/actual) existe. A API (GoFlightLabs) às vezes retorna voos do tipo adsb com departure e arrival *com horários vazios* (""), por exemplo:
-
-  json
-  "departure": { "airport": "KGPI", "timezone": "UTC", "iata": "FCA", "icao": "KGPI", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" },
-  "arrival":   { "airport": "KORD", "timezone": "UTC", "iata": "ORD", "icao": "KORD", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" },
-  "live": { "updated": "2025-10-13T19:20:13.000Z", "latitude": 47.682134, ... }
-  
-* Com esses campos vazios, a função atual lança erro e interrompe o processamento, embora exista informação live.updated (horário de atualização do ADS-B) que pode ser usada.
-
-*Requisitos / comportamento desejado (Opção 1)*
-
-1. Antes de levantar qualquer exceção, verificar departure.scheduled, departure.estimated, departure.actual (nesta ordem de preferência).
-2. Se nenhum desses contiver um valor válido (string não-vazia ou valor de data válido), usar live.updated (se existir) como fallback para departureTime.
-3. Se live.updated também não existir, NÃO lançar erro — em vez disso:
-
-   * definir departureTime = null
-   * registrar um console.warn com contexto (hex, flight_iata/flight_icao, dep_iata/dep_icao) para facilitar debugging
-4. Não remover outros dados do voo — apenas garantir que a transformação retorne o formato esperado pela aplicação (mesmo que departure.time seja null).
-5. Garantir que a função *não* quebre o fluxo: quando departureTime for null, a função deve retornar o objeto transformado (ou null apenas se for explicitamente desejado pelo fluxo atual — neste caso preferimos *retornar o objeto transformado* com horários null).
-6. Fazer logs claros:
-
-   * console.warn("Nenhum horário de partida encontrado; usando live.updated como fallback", { hex, flight_iata, dep_iata, liveUpdated })
-   * console.warn("Nenhum horário de partida e live.updated ausente; definindo departureTime = null", { hex, flight_iata, dep_iata })
-
-*Input de exemplo (payload real que gerou erro)*
-
-json
-{
-  "flight_date": "2025-10-13",
-  "flight_status": "en-route",
-  "departure": {
-    "airport": "KGPI", "timezone": "UTC", "iata": "FCA", "icao": "KGPI",
-    "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": ""
-  },
-  "arrival": {
-    "airport": "KORD", "timezone": "UTC", "iata": "ORD", "icao": "KORD",
-    "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": ""
-  },
-  "airline": { "name": "UAL", "iata": "UA", "icao": "UAL" },
-  "flight": { "number": "1100", "iata": "UA1100", "icao": "UAL1100" },
-  "aircraft": { "registration": "N27511", "iata": "B39M", "icao": "B39M", "icao24": "A2BBA4" },
-  "live": { "updated": "2025-10-13T19:20:13.000Z", "latitude": 47.682134, ... }
-}
-
-
-*Saída esperada (exemplo)*
-
-* departureTime (ou departure.scheduled no objeto retornado) deve ser preenchido com:
-
-  * departure.scheduled quando válido; ou
-  * departure.estimated quando scheduled inválido; ou
-  * departure.actual quando os anteriores inválidos; ou
-  * live.updated quando nenhum dos anteriores válidos; ou
-  * null quando todos ausentes.
-* O objeto final de retorno deve manter todos os demais campos (icao, iata, airline, hex, live, etc.).
-
-*Exemplo de output esperado (resumo)*
-
-ts
-{
-  hex: "A2BBA4",
-  regNumber: "N27511",
-  flightNumber: "1100",
-  airline: "UA",
-  aircraft: "B39M",
-  departure: {
-    iata: "FCA",
-    icao: "KGPI",
-    scheduled: "2025-10-13T19:20:13.000Z" // fallback para live.updated
-  },
-  arrival: { iata: "ORD", icao: "KORD", scheduled: null },
-  status: "en-route",
-  live: { updated: "2025-10-13T19:20:13.000Z", latitude: 47.682134, ... }
-}
-
-
-*Instruções de implementação (TS)*
-
-* Modifique transformFlightData(flight: any) como abaixo (exemplo de referência — adapte ao estilo do repositório):
-
-ts
-function transformFlightData(flight: any) {
-  const hex = flight.hex || flight.aircraft?.icao24 || null;
-  const flightIata = flight.flight_iata || flight.flight?.iata || flight.flight_icao || null;
-
-  // pega horários com prioridade: scheduled -> estimated -> actual
-  const scheduled = flight.departure?.scheduled?.trim() || null;
-  const estimated = flight.departure?.estimated?.trim() || null;
-  const actual = flight.departure?.actual?.trim() || null;
-
-  let departureTime = scheduled || estimated || actual || null;
-
-  // fallback para live.updated quando os horários acima estiverem ausentes/ vazios
-  if (!departureTime && flight.live?.updated) {
-    console.warn("Nenhum horário de partida encontrado — usando live.updated como fallback", {
-      hex, flightIata, dep_iata: flight.dep_iata || flight.departure?.iata, liveUpdated: flight.live.updated
-    });
-    departureTime = flight.live.updated;
-  }
-
-  // Se ainda não existe, definimos null mas NÃO lançamos erro
-  if (!departureTime) {
-    console.warn("Nenhum horário de partida e live.updated ausente; definindo departureTime = null", {
-      hex, flightIata, dep_iata: flight.dep_iata || flight.departure?.iata
-    });
-    departureTime = null;
-  }
-
-  // Monta objeto transformado (exemplo; mantenha as chaves necessárias pela aplicação)
-  return {
-    hex,
-    regNumber: flight.reg_number || flight.aircraft?.registration || null,
-    flightNumber: flight.flight_number || flight.flight?.number || null,
-    airline: flight.airline_iata || flight.airline?.iata || flight.airline?.icao || null,
-    aircraft: flight.aircraft_icao || flight.aircraft?.icao || null,
-    departure: {
-      iata: flight.dep_iata || flight.departure?.iata || null,
-      icao: flight.dep_icao || flight.departure?.icao || null,
-      scheduled: departureTime
-    },
-    arrival: {
-      iata: flight.arr_iata || flight.arrival?.iata || null,
-      icao: flight.arr_icao || flight.arrival?.icao || null,
-      scheduled: flight.arrival?.scheduled || flight.arrival?.estimated || flight.arrival?.actual || null
-    },
-    status: flight.status || flight.flight_status || null,
-    live: flight.live || null,
-    updated: flight.updated || (flight.live && flight.live.updated) || null
-  };
-}
+Dados não estão no formato esperado, tentando adaptar...
+Adaptando resposta da API: { "hex": "4D23B8", "reg_number": "9H-MLE", "flag": "DE", "lat": 51.331147, "lng": 12.140868, "alt": 8828, "dir": 53, "speed": 855, "v_speed": 0, "flight_number": "2683", "flight_icao": "EWG2683", "flight_iata": "EW2683", "dep_icao": "EDDS", "dep_iata": "STR", "arr_icao": "EDDB", "arr_iata": "BER", "airline_icao": "EWG", "airline_iata": "EW", "aircraft_icao": "A320", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "347645", flightIata: "NT6074", dep_iata: "TFN", liveUpdated: "2025-10-13T19:39:27.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "750254", flightIata: "MH88", dep_iata: "KUL", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "WMKK", "timezone": "UTC", "iata": "KUL", "icao": "WMKK", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "RJBB", "timezone": "UTC", "iata": "KIX", "icao": "RJBB", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "MAS", "iata": "MH", "icao": "MAS" }, "flight": { "number": "52", "iata": "MH52", "icao": "MAS52", "codeshared": null }, "aircraft": { "registration": "9M-MTC", "iata": "A333", "icao": "A333", "icao24": "750256" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 26.396259, "longitude": 126.741151, "altitude": 11907, "direction": 36.3, "speed_horizontal": 891, "speed_vertical": 0, "is_ground": false } }
+Adaptando resposta da API: { "hex": "347645", "reg_number": "EC-OEA", "flag": "ES", "lat": 33.234376, "lng": -11.468996, "alt": 10992, "dir": 38, "speed": 874, "v_speed": 0, "flight_number": "6074", "flight_icao": "IBB6074", "flight_iata": "NT6074", "dep_icao": "GCXO", "dep_iata": "TFN", "arr_icao": "LEMD", "arr_iata": "MAD", "airline_icao": "IBB", "airline_iata": "NT", "aircraft_icao": "E295", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Dados não estão no formato esperado, tentando adaptar...
+Dados brutos recebidos: { "hex": "750256", "reg_number": "9M-MTC", "flag": "MY", "lat": 26.396259, "lng": 126.741151, "alt": 11907, "dir": 36.3, "speed": 891, "v_speed": 0, "flight_number": "52", "flight_icao": "MAS52", "flight_iata": "MH52", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJBB", "arr_iata": "KIX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "ENBR", "timezone": "UTC", "iata": "BGO", "icao": "ENBR", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "ENTC", "timezone": "UTC", "iata": "TOS", "icao": "ENTC", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "WIF", "iata": "WF", "icao": "WIF" }, "flight": { "number": "630", "iata": "WF630", "icao": "WIF630", "codeshared": null }, "aircraft": { "registration": "LN-WEC", "iata": "E290", "icao": "E290", "icao24": "479301" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 67.45488, "longitude": 14.886508, "altitude": 12006, "direction": 30.1, "speed_horizontal": 724, "speed_vertical": 0, "is_ground": false } }
+Dados não estão no formato esperado, tentando adaptar...
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "GCXO", "timezone": "UTC", "iata": "TFN", "icao": "GCXO", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "LEMD", "timezone": "UTC", "iata": "MAD", "icao": "LEMD", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "IBB", "iata": "NT", "icao": "IBB" }, "flight": { "number": "6074", "iata": "NT6074", "icao": "IBB6074", "codeshared": null }, "aircraft": { "registration": "EC-OEA", "iata": "E295", "icao": "E295", "icao24": "347645" }, "live": { "updated": "2025-10-13T19:39:27.000Z", "latitude": 33.234376, "longitude": -11.468996, "altitude": 10992, "direction": 38, "speed_horizontal": 874, "speed_vertical": 0, "is_ground": false } }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "4D23B8", flightIata: "EW2683", dep_iata: "STR", liveUpdated: "2025-10-13T19:39:27.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "479301", flightIata: "WF630", dep_iata: "BGO", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "750256", flightIata: "MH52", dep_iata: "KUL", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Adaptando resposta da API: { "hex": "750254", "reg_number": "9M-MTA", "flag": "MY", "lat": -36.221299, "lng": 142.244503, "alt": 11381, "dir": 114, "speed": 959, "v_speed": 0, "flight_number": "88", "flight_icao": "MAS88", "flight_iata": "MH88", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJAA", "arr_iata": "NRT", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A339", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+✅ Voo internacional detectado: STR -> BER
+Dados brutos recebidos: { "hex": "750254", "reg_number": "9M-MTA", "flag": "MY", "lat": -36.221299, "lng": 142.244503, "alt": 11381, "dir": 114, "speed": 959, "v_speed": 0, "flight_number": "88", "flight_icao": "MAS88", "flight_iata": "MH88", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJAA", "arr_iata": "NRT", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A339", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+✅ Voo internacional detectado: KUL -> KIX
+✅ Voo internacional detectado: KUL -> NRT
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "EDDS", "timezone": "UTC", "iata": "STR", "icao": "EDDS", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "EDDB", "timezone": "UTC", "iata": "BER", "icao": "EDDB", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "EWG", "iata": "EW", "icao": "EWG" }, "flight": { "number": "2683", "iata": "EW2683", "icao": "EWG2683", "codeshared": null }, "aircraft": { "registration": "9H-MLE", "iata": "A320", "icao": "A320", "icao24": "4D23B8" }, "live": { "updated": "2025-10-13T19:39:27.000Z", "latitude": 51.331147, "longitude": 12.140868, "altitude": 8828, "direction": 53, "speed_horizontal": 855, "speed_vertical": 0, "is_ground": false } }
+✅ Voo internacional detectado: TFN -> MAD
+Adaptando resposta da API: { "hex": "750256", "reg_number": "9M-MTC", "flag": "MY", "lat": 26.396259, "lng": 126.741151, "alt": 11907, "dir": 36.3, "speed": 891, "v_speed": 0, "flight_number": "52", "flight_icao": "MAS52", "flight_iata": "MH52", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJBB", "arr_iata": "KIX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados brutos recebidos: { "hex": "750262", "reg_number": "9M-MTO", "flag": "MY", "lat": 24.585848, "lng": 113.426959, "alt": 11937, "dir": 3, "speed": 881, "v_speed": 0, "flight_number": "318", "flight_icao": "MAS318", "flight_iata": "MH318", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "ZBAD", "arr_iata": "PKX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Adaptando resposta da API: { "hex": "479301", "reg_number": "LN-WEC", "flag": "NO", "lat": 67.45488, "lng": 14.886508, "alt": 12006, "dir": 30.1, "speed": 724, "v_speed": 0, "flight_number": "630", "flight_icao": "WIF630", "flight_iata": "WF630", "dep_icao": "ENBR", "dep_iata": "BGO", "arr_icao": "ENTC", "arr_iata": "TOS", "airline_icao": "WIF", "airline_iata": "WF", "aircraft_icao": "E290", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "WMKK", "timezone": "UTC", "iata": "KUL", "icao": "WMKK", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "RJAA", "timezone": "UTC", "iata": "NRT", "icao": "RJAA", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "MAS", "iata": "MH", "icao": "MAS" }, "flight": { "number": "88", "iata": "MH88", "icao": "MAS88", "codeshared": null }, "aircraft": { "registration": "9M-MTA", "iata": "A339", "icao": "A339", "icao24": "750254" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": -36.221299, "longitude": 142.244503, "altitude": 11381, "direction": 114, "speed_horizontal": 959, "speed_vertical": 0, "is_ground": false } }
+Dados não estão no formato esperado, tentando adaptar...
+✅ Voo internacional detectado: BGO -> TOS
+Dados brutos recebidos: { "hex": "479301", "reg_number": "LN-WEC", "flag": "NO", "lat": 67.45488, "lng": 14.886508, "alt": 12006, "dir": 30.1, "speed": 724, "v_speed": 0, "flight_number": "630", "flight_icao": "WIF630", "flight_iata": "WF630", "dep_icao": "ENBR", "dep_iata": "BGO", "arr_icao": "ENTC", "arr_iata": "TOS", "airline_icao": "WIF", "airline_iata": "WF", "aircraft_icao": "E290", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados brutos recebidos: { "hex": "347645", "reg_number": "EC-OEA", "flag": "ES", "lat": 33.234376, "lng": -11.468996, "alt": 10992, "dir": 38, "speed": 874, "v_speed": 0, "flight_number": "6074", "flight_icao": "IBB6074", "flight_iata": "NT6074", "dep_icao": "GCXO", "dep_iata": "TFN", "arr_icao": "LEMD", "arr_iata": "MAD", "airline_icao": "IBB", "airline_iata": "NT", "aircraft_icao": "E295", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Dados brutos recebidos: { "hex": "8015CB", "reg_number": "VT-IBQ", "flag": "IN", "lat": 19.774322, "lng": 72.75475, "alt": 6740, "dir": 11.3, "speed": 753, "v_speed": 0, "flight_number": "911", "flight_icao": "IGO911", "flight_iata": "6E911", "dep_icao": "VABB", "dep_iata": "BOM", "arr_icao": "VAAH", "arr_iata": "AMD", "airline_icao": "IGO", "airline_iata": "6E", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados brutos recebidos: { "hex": "AA56B3", "reg_number": "N76514", "flag": "US", "lat": 42.851611, "lng": -112.61888, "alt": 10992, "dir": 305.6, "speed": 814, "v_speed": 0, "flight_number": "318", "flight_icao": "UAL318", "flight_iata": "UA318", "dep_icao": "KDEN", "dep_iata": "DEN", "arr_icao": "KEUG", "arr_iata": "EUG", "airline_icao": "UAL", "airline_iata": "UA", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Adaptando resposta da API: { "hex": "AA56B3", "reg_number": "N76514", "flag": "US", "lat": 42.851611, "lng": -112.61888, "alt": 10992, "dir": 305.6, "speed": 814, "v_speed": 0, "flight_number": "318", "flight_icao": "UAL318", "flight_iata": "UA318", "dep_icao": "KDEN", "dep_iata": "DEN", "arr_icao": "KEUG", "arr_iata": "EUG", "airline_icao": "UAL", "airline_iata": "UA", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "MMVA", "timezone": "UTC", "iata": "VSA", "icao": "MMVA", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "MMMY", "timezone": "UTC", "iata": "MTY", "icao": "MMMY", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "VIV", "iata": "VB", "icao": "VIV" }, "flight": { "number": "4395", "iata": "VB4395", "icao": "VIV4395", "codeshared": null }, "aircraft": { "registration": "XA-VAA", "iata": "A320", "icao": "A320", "icao24": "0D08E6" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 23.53133, "longitude": -97.950479, "altitude": 11907, "direction": 323, "speed_horizontal": 847, "speed_vertical": 0, "is_ground": false } }
+Adaptando resposta da API: { "hex": "345686", "reg_number": "EC-MUK", "flag": "ES", "lat": 40.196652, "lng": -2.667426, "alt": 7731, "dir": 119.5, "speed": 796, "v_speed": 0, "flight_number": "1679", "flight_icao": "IBE1679", "flight_iata": "IB1679", "dep_icao": "LEMD", "dep_iata": "MAD", "arr_icao": "LEPA", "arr_iata": "PMI", "airline_icao": "IBS", "airline_iata": "I2", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Adaptando resposta da API: { "hex": "0C4353", "reg_number": "HI1098", "flag": "DO", "lat": 21.769269, "lng": -73.45629, "alt": 11983, "dir": 122.2, "speed": 857, "v_speed": 0, "flight_number": "2101", "flight_icao": "DWI2101", "flight_iata": "DM2101", "dep_icao": "KMIA", "dep_iata": "MIA", "arr_icao": "MDSD", "arr_iata": "SDQ", "airline_icao": "DWI", "airline_iata": "DM", "aircraft_icao": "B38M", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+✅ Voo internacional detectado: MAD -> PMI
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "MMUN", "timezone": "UTC", "iata": "CUN", "icao": "MMUN", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "KFLL", "timezone": "UTC", "iata": "FLL", "icao": "KFLL", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "NKS", "iata": "NK", "icao": "NKS" }, "flight": { "number": "528", "iata": "NK528", "icao": "NKS528", "codeshared": null }, "aircraft": { "registration": "N706NK", "iata": "A21N", "icao": "A21N", "icao24": "A96C0E" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 22.991407, "longitude": -83.688481, "altitude": 10688, "direction": 47.7, "speed_horizontal": 934, "speed_vertical": 0, "is_ground": false } }
+Dados não estão no formato esperado, tentando adaptar...
+✅ Voo internacional detectado: BOM -> AMD
+✅ Voo internacional detectado: BCN -> STN
+Dados não estão no formato esperado, tentando adaptar...
+Dados brutos recebidos: { "hex": "AA883E", "reg_number": "N778RH", "flag": "US", "lat": 35.094001, "lng": -89.866204, "alt": 2555, "dir": 187.6, "speed": 468, "v_speed": 0, "flight_number": "3697", "flight_icao": "AAL3697", "flight_iata": "AA3697", "dep_icao": "KORD", "dep_iata": "ORD", "arr_icao": "KMEM", "arr_iata": "MEM", "airline_icao": "ENY", "airline_iata": "MQ", "aircraft_icao": "E170", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Adaptando resposta da API: { "hex": "8406D0", "flag": "JP", "lat": 34.971075, "lng": 139.913571, "alt": 2875, "dir": 282, "speed": 513, "v_speed": 0, "flight_number": "3", "flight_icao": "JAL3", "flight_iata": "JL3", "dep_icao": "KJFK", "dep_iata": "JFK", "arr_icao": "RJTT", "arr_iata": "HND", "airline_icao": "JAL", "airline_iata": "JL", "aircraft_icao": "A35K", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "LEBL", "timezone": "UTC", "iata": "BCN", "icao": "LEBL", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "EGSS", "timezone": "UTC", "iata": "STN", "icao": "EGSS", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "RYR", "iata": "FR", "icao": "RYR" }, "flight": { "number": "8215", "iata": "FR8215", "icao": "RYR8215", "codeshared": null }, "aircraft": { "registration": "SP-RKQ", "iata": "B738", "icao": "B738", "icao24": "48C139" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 42.021002, "longitude": 1.573814, "altitude": 8828, "direction": 341.5, "speed_horizontal": 811, "speed_vertical": 0, "is_ground": false } }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "KORD", "timezone": "UTC", "iata": "ORD", "icao": "KORD", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "KMEM", "timezone": "UTC", "iata": "MEM", "icao": "KMEM", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "ENY", "iata": "MQ", "icao": "ENY" }, "flight": { "number": "3697", "iata": "AA3697", "icao": "AAL3697", "codeshared": null }, "aircraft": { "registration": "N778RH", "iata": "E170", "icao": "E170", "icao24": "AA883E" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 35.094001, "longitude": -89.866204, "altitude": 2555, "direction": 187.6, "speed_horizontal": 468, "speed_vertical": 0, "is_ground": false } }
+Dados não estão no formato esperado, tentando adaptar...
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "0D08E6", flightIata: "VB4395", dep_iata: "VSA", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Dados brutos recebidos: { "hex": "4D23B8", "reg_number": "9H-MLE", "flag": "DE", "lat": 51.331147, "lng": 12.140868, "alt": 8828, "dir": 53, "speed": 855, "v_speed": 0, "flight_number": "2683", "flight_icao": "EWG2683", "flight_iata": "EW2683", "dep_icao": "EDDS", "dep_iata": "STR", "arr_icao": "EDDB", "arr_iata": "BER", "airline_icao": "EWG", "airline_iata": "EW", "aircraft_icao": "A320", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "KJFK", "timezone": "UTC", "iata": "JFK", "icao": "KJFK", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "RJTT", "timezone": "UTC", "iata": "HND", "icao": "RJTT", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "JAL", "iata": "JL", "icao": "JAL" }, "flight": { "number": "3", "iata": "JL3", "icao": "JAL3", "codeshared": null }, "aircraft": { "registration": "", "iata": "A35K", "icao": "A35K", "icao24": "8406D0" }, "live": { "updated": "2025-10-13T19:39:27.000Z", "latitude": 34.971075, "longitude": 139.913571, "altitude": 2875, "direction": 282, "speed_horizontal": 513, "speed_vertical": 0, "is_ground": false } }
+Processando 100 voos válidos
+✅ Voo internacional detectado: DEN -> EUG
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "LEMD", "timezone": "UTC", "iata": "MAD", "icao": "LEMD", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "LEPA", "timezone": "UTC", "iata": "PMI", "icao": "LEPA", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "IBS", "iata": "I2", "icao": "IBS" }, "flight": { "number": "1679", "iata": "IB1679", "icao": "IBE1679", "codeshared": null }, "aircraft": { "registration": "EC-MUK", "iata": "A320", "icao": "A320", "icao24": "345686" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 40.196652, "longitude": -2.667426, "altitude": 7731, "direction": 119.5, "speed_horizontal": 796, "speed_vertical": 0, "is_ground": false } }
+✅ Voo internacional detectado: JFK -> HND
+Dados brutos recebidos: { "hex": "48C139", "reg_number": "SP-RKQ", "flag": "IE", "lat": 42.021002, "lng": 1.573814, "alt": 8828, "dir": 341.5, "speed": 811, "v_speed": 0, "flight_number": "8215", "flight_icao": "RYR8215", "flight_iata": "FR8215", "dep_icao": "LEBL", "dep_iata": "BCN", "arr_icao": "EGSS", "arr_iata": "STN", "airline_icao": "RYR", "airline_iata": "FR", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+✅ Voo internacional detectado: ORY -> IST
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "LFPO", "timezone": "UTC", "iata": "ORY", "icao": "LFPO", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "LTFM", "timezone": "UTC", "iata": "IST", "icao": "LTFM", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "TVF", "iata": "TO", "icao": "TVF" }, "flight": { "number": "3422", "iata": "TO3422", "icao": "TVF3422", "codeshared": null }, "aircraft": { "registration": "F-GNEO", "iata": "A20N", "icao": "A20N", "icao24": "39348E" }, "live": { "updated": "2025-10-13T19:39:27.000Z", "latitude": 42.833376, "longitude": 23.277894, "altitude": 11907, "direction": 113, "speed_horizontal": 863, "speed_vertical": 0, "is_ground": false } }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "AA56B3", flightIata: "UA318", dep_iata: "DEN", liveUpdated: "2025-10-13T19:39:28.000Z" }
+✅ Voo internacional detectado: CUN -> FLL
+Adaptando resposta da API: { "hex": "A96C0E", "reg_number": "N706NK", "flag": "US", "lat": 22.991407, "lng": -83.688481, "alt": 10688, "dir": 47.7, "speed": 934, "v_speed": 0, "flight_number": "528", "flight_icao": "NKS528", "flight_iata": "NK528", "dep_icao": "MMUN", "dep_iata": "CUN", "arr_icao": "KFLL", "arr_iata": "FLL", "airline_icao": "NKS", "airline_iata": "NK", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Adaptando resposta da API: { "hex": "8015CB", "reg_number": "VT-IBQ", "flag": "IN", "lat": 19.774322, "lng": 72.75475, "alt": 6740, "dir": 11.3, "speed": 753, "v_speed": 0, "flight_number": "911", "flight_icao": "IGO911", "flight_iata": "6E911", "dep_icao": "VABB", "dep_iata": "BOM", "arr_icao": "VAAH", "arr_iata": "AMD", "airline_icao": "IGO", "airline_iata": "6E", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "48C139", flightIata: "FR8215", dep_iata: "BCN", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Detectado formato da API com propriedade data (fallback)
+✅ Voo internacional detectado: MIA -> SDQ
+Dados não estão no formato esperado, tentando adaptar...
+Adaptando resposta da API: { "hex": "AA883E", "reg_number": "N778RH", "flag": "US", "lat": 35.094001, "lng": -89.866204, "alt": 2555, "dir": 187.6, "speed": 468, "v_speed": 0, "flight_number": "3697", "flight_icao": "AAL3697", "flight_iata": "AA3697", "dep_icao": "KORD", "dep_iata": "ORD", "arr_icao": "KMEM", "arr_iata": "MEM", "airline_icao": "ENY", "airline_iata": "MQ", "aircraft_icao": "E170", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados não estão no formato esperado, tentando adaptar...
+Dados não estão no formato esperado, tentando adaptar...
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "VABB", "timezone": "UTC", "iata": "BOM", "icao": "VABB", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "VAAH", "timezone": "UTC", "iata": "AMD", "icao": "VAAH", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "IGO", "iata": "6E", "icao": "IGO" }, "flight": { "number": "911", "iata": "6E911", "icao": "IGO911", "codeshared": null }, "aircraft": { "registration": "VT-IBQ", "iata": "A21N", "icao": "A21N", "icao24": "8015CB" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 19.774322, "longitude": 72.75475, "altitude": 6740, "direction": 11.3, "speed_horizontal": 753, "speed_vertical": 0, "is_ground": false } }
+Dados brutos recebidos: { "hex": "A96C0E", "reg_number": "N706NK", "flag": "US", "lat": 22.991407, "lng": -83.688481, "alt": 10688, "dir": 47.7, "speed": 934, "v_speed": 0, "flight_number": "528", "flight_icao": "NKS528", "flight_iata": "NK528", "dep_icao": "MMUN", "dep_iata": "CUN", "arr_icao": "KFLL", "arr_iata": "FLL", "airline_icao": "NKS", "airline_iata": "NK", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "8406D0", flightIata: "JL3", dep_iata: "JFK", liveUpdated: "2025-10-13T19:39:27.000Z" }
+Dados brutos recebidos: { "hex": "345686", "reg_number": "EC-MUK", "flag": "ES", "lat": 40.196652, "lng": -2.667426, "alt": 7731, "dir": 119.5, "speed": 796, "v_speed": 0, "flight_number": "1679", "flight_icao": "IBE1679", "flight_iata": "IB1679", "dep_icao": "LEMD", "dep_iata": "MAD", "arr_icao": "LEPA", "arr_iata": "PMI", "airline_icao": "IBS", "airline_iata": "I2", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "KDEN", "timezone": "UTC", "iata": "DEN", "icao": "KDEN", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "KEUG", "timezone": "UTC", "iata": "EUG", "icao": "KEUG", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "UAL", "iata": "UA", "icao": "UAL" }, "flight": { "number": "318", "iata": "UA318", "icao": "UAL318", "codeshared": null }, "aircraft": { "registration": "N76514", "iata": "B738", "icao": "B738", "icao24": "AA56B3" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 42.851611, "longitude": -112.61888, "altitude": 10992, "direction": 305.6, "speed_horizontal": 814, "speed_vertical": 0, "is_ground": false } }
+Dados brutos recebidos: { "hex": "39348E", "reg_number": "F-GNEO", "flag": "FR", "lat": 42.833376, "lng": 23.277894, "alt": 11907, "dir": 113, "speed": 863, "v_speed": 0, "flight_number": "3422", "flight_icao": "TVF3422", "flight_iata": "TO3422", "dep_icao": "LFPO", "dep_iata": "ORY", "arr_icao": "LTFM", "arr_iata": "IST", "airline_icao": "TVF", "airline_iata": "TO", "aircraft_icao": "A20N", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Dados brutos recebidos: { "hex": "0D08E6", "reg_number": "XA-VAA", "flag": "MX", "lat": 23.53133, "lng": -97.950479, "alt": 11907, "dir": 323, "speed": 847, "v_speed": 0, "flight_number": "4395", "flight_icao": "VIV4395", "flight_iata": "VB4395", "dep_icao": "MMVA", "dep_iata": "VSA", "arr_icao": "MMMY", "arr_iata": "MTY", "airline_icao": "VIV", "airline_iata": "VB", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados não estão no formato esperado, tentando adaptar...
+Dados não estão no formato esperado, tentando adaptar...
+Dados brutos recebidos: { "hex": "0C4353", "reg_number": "HI1098", "flag": "DO", "lat": 21.769269, "lng": -73.45629, "alt": 11983, "dir": 122.2, "speed": 857, "v_speed": 0, "flight_number": "2101", "flight_icao": "DWI2101", "flight_iata": "DM2101", "dep_icao": "KMIA", "dep_iata": "MIA", "arr_icao": "MDSD", "arr_iata": "SDQ", "airline_icao": "DWI", "airline_iata": "DM", "aircraft_icao": "B38M", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados não estão no formato esperado, tentando adaptar...
+✅ Voo internacional detectado: ORD -> MEM
+Adaptando resposta da API: { "hex": "0D08E6", "reg_number": "XA-VAA", "flag": "MX", "lat": 23.53133, "lng": -97.950479, "alt": 11907, "dir": 323, "speed": 847, "v_speed": 0, "flight_number": "4395", "flight_icao": "VIV4395", "flight_iata": "VB4395", "dep_icao": "MMVA", "dep_iata": "VSA", "arr_icao": "MMMY", "arr_iata": "MTY", "airline_icao": "VIV", "airline_iata": "VB", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Dados não estão no formato esperado, tentando adaptar...
+Dados não estão no formato esperado, tentando adaptar...
+Adaptando resposta da API: { "hex": "48C139", "reg_number": "SP-RKQ", "flag": "IE", "lat": 42.021002, "lng": 1.573814, "alt": 8828, "dir": 341.5, "speed": 811, "v_speed": 0, "flight_number": "8215", "flight_icao": "RYR8215", "flight_iata": "FR8215", "dep_icao": "LEBL", "dep_iata": "BCN", "arr_icao": "EGSS", "arr_iata": "STN", "airline_icao": "RYR", "airline_iata": "FR", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "0C4353", flightIata: "DM2101", dep_iata: "MIA", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "AA883E", flightIata: "AA3697", dep_iata: "ORD", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "A96C0E", flightIata: "NK528", dep_iata: "CUN", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "8015CB", flightIata: "6E911", dep_iata: "BOM", liveUpdated: "2025-10-13T19:39:28.000Z" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "345686", flightIata: "IB1679", dep_iata: "MAD", liveUpdated: "2025-10-13T19:39:28.000Z" }
+✅ Voo internacional detectado: VSA -> MTY
+Adaptando resposta da API: { "hex": "39348E", "reg_number": "F-GNEO", "flag": "FR", "lat": 42.833376, "lng": 23.277894, "alt": 11907, "dir": 113, "speed": 863, "v_speed": 0, "flight_number": "3422", "flight_icao": "TVF3422", "flight_iata": "TO3422", "dep_icao": "LFPO", "dep_iata": "ORY", "arr_icao": "LTFM", "arr_iata": "IST", "airline_icao": "TVF", "airline_iata": "TO", "aircraft_icao": "A20N", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Resposta recebida da API: { "success": true, "data": [ { "hex": "A96C0E", "reg_number": "N706NK", "flag": "US", "lat": 22.991407, "lng": -83.688481, "alt": 10688, "dir": 47.7, "speed": 934, "v_speed": 0, "flight_number": "528", "flight_icao": "NKS528", "flight_iata": "NK528", "dep_icao": "MMUN", "dep_iata": "CUN", "arr_icao": "KFLL", "arr_iata": "FLL", "airline_icao": "NKS", "airline_iata": "NK", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "8406D0", "flag": "JP", "lat": 34.971075, "lng": 139.913571, "alt": 2875, "dir": 282, "speed": 513, "v_speed": 0, "flight_number": "3", "flight_icao": "JAL3", "flight_iata": "JL3", "dep_icao": "KJFK", "dep_iata": "JFK", "arr_icao": "RJTT", "arr_iata": "HND", "airline_icao": "JAL", "airline_iata": "JL", "aircraft_icao": "A35K", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "39348E", "reg_number": "F-GNEO", "flag": "FR", "lat": 42.833376, "lng": 23.277894, "alt": 11907, "dir": 113, "speed": 863, "v_speed": 0, "flight_number": "3422", "flight_icao": "TVF3422", "flight_iata": "TO3422", "dep_icao": "LFPO", "dep_iata": "ORY", "arr_icao": "LTFM", "arr_iata": "IST", "airline_icao": "TVF", "airline_iata": "TO", "aircraft_icao": "A20N", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "345686", "reg_number": "EC-MUK", "flag": "ES", "lat": 40.196652, "lng": -2.667426, "alt": 7731, "dir": 119.5, "speed": 796, "v_speed": 0, "flight_number": "1679", "flight_icao": "IBE1679", "flight_iata": "IB1679", "dep_icao": "LEMD", "dep_iata": "MAD", "arr_icao": "LEPA", "arr_iata": "PMI", "airline_icao": "IBS", "airline_iata": "I2", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "8015CB", "reg_number": "VT-IBQ", "flag": "IN", "lat": 19.774322, "lng": 72.75475, "alt": 6740, "dir": 11.3, "speed": 753, "v_speed": 0, "flight_number": "911", "flight_icao": "IGO911", "flight_iata": "6E911", "dep_icao": "VABB", "dep_iata": "BOM", "arr_icao": "VAAH", "arr_iata": "AMD", "airline_icao": "IGO", "airline_iata": "6E", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "48C139", "reg_number": "SP-RKQ", "flag": "IE", "lat": 42.021002, "lng": 1.573814, "alt": 8828, "dir": 341.5, "speed": 811, "v_speed": 0, "flight_number": "8215", "flight_icao": "RYR8215", "flight_iata": "FR8215", "dep_icao": "LEBL", "dep_iata": "BCN", "arr_icao": "EGSS", "arr_iata": "STN", "airline_icao": "RYR", "airline_iata": "FR", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "AA56B3", "reg_number": "N76514", "flag": "US", "lat": 42.851611, "lng": -112.61888, "alt": 10992, "dir": 305.6, "speed": 814, "v_speed": 0, "flight_number": "318", "flight_icao": "UAL318", "flight_iata": "UA318", "dep_icao": "KDEN", "dep_iata": "DEN", "arr_icao": "KEUG", "arr_iata": "EUG", "airline_icao": "UAL", "airline_iata": "UA", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "0C4353", "reg_number": "HI1098", "flag": "DO", "lat": 21.769269, "lng": -73.45629, "alt": 11983, "dir": 122.2, "speed": 857, "v_speed": 0, "flight_number": "2101", "flight_icao": "DWI2101", "flight_iata": "DM2101", "dep_icao": "KMIA", "dep_iata": "MIA", "arr_icao": "MDSD", "arr_iata": "SDQ", "airline_icao": "DWI", "airline_iata": "DM", "aircraft_icao": "B38M", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "0D08E6", "reg_number": "XA-VAA", "flag": "MX", "lat": 23.53133, "lng": -97.950479, "alt": 11907, "dir": 323, "speed": 847, "v_speed": 0, "flight_number": "4395", "flight_icao": "VIV4395", "flight_iata": "VB4395", "dep_icao": "MMVA", "dep_iata": "VSA", "arr_icao": "MMMY", "arr_iata": "MTY", "airline_icao": "VIV", "airline_iata": "VB", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "AA883E", "reg_number": "N778RH", "flag": "US", "lat": 35.094001, "lng": -89.866204, "alt": 2555, "dir": 187.6, "speed": 468, "v_speed": 0, "flight_number": "3697", "flight_icao": "AAL3697", "flight_iata": "AA3697", "dep_icao": "KORD", "dep_iata": "ORD", "arr_icao": "KMEM", "arr_iata": "MEM", "airline_icao": "ENY", "airline_iata": "MQ", "aircraft_icao": "E170", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "4D23B8", "reg_number": "9H-MLE", "flag": "DE", "lat": 51.331147, "lng": 12.140868, "alt": 8828, "dir": 53, "speed": 855, "v_speed": 0, "flight_number": "2683", "flight_icao": "EWG2683", "flight_iata": "EW2683", "dep_icao": "EDDS", "dep_iata": "STR", "arr_icao": "EDDB", "arr_iata": "BER", "airline_icao": "EWG", "airline_iata": "EW", "aircraft_icao": "A320", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "347645", "reg_number": "EC-OEA", "flag": "ES", "lat": 33.234376, "lng": -11.468996, "alt": 10992, "dir": 38, "speed": 874, "v_speed": 0, "flight_number": "6074", "flight_icao": "IBB6074", "flight_iata": "NT6074", "dep_icao": "GCXO", "dep_iata": "TFN", "arr_icao": "LEMD", "arr_iata": "MAD", "airline_icao": "IBB", "airline_iata": "NT", "aircraft_icao": "E295", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "479301", "reg_number": "LN-WEC", "flag": "NO", "lat": 67.45488, "lng": 14.886508, "alt": 12006, "dir": 30.1, "speed": 724, "v_speed": 0, "flight_number": "630", "flight_icao": "WIF630", "flight_iata": "WF630", "dep_icao": "ENBR", "dep_iata": "BGO", "arr_icao": "ENTC", "arr_iata": "TOS", "airline_icao": "WIF", "airline_iata": "WF", "aircraft_icao": "E290", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750254", "reg_number": "9M-MTA", "flag": "MY", "lat": -36.221299, "lng": 142.244503, "alt": 11381, "dir": 114, "speed": 959, "v_speed": 0, "flight_number": "88", "flight_icao": "MAS88", "flight_iata": "MH88", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJAA", "arr_iata": "NRT", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A339", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750256", "reg_number": "9M-MTC", "flag": "MY", "lat": 26.396259, "lng": 126.741151, "alt": 11907, "dir": 36.3, "speed": 891, "v_speed": 0, "flight_number": "52", "flight_icao": "MAS52", "flight_iata": "MH52", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJBB", "arr_iata": "KIX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750262", "reg_number": "9M-MTO", "flag": "MY", "lat": 24.585848, "lng": 113.426959, "alt": 11937, "dir": 3, "speed": 881, "v_speed": 0, "flight_number": "318", "flight_icao": "MAS318", "flight_iata": "MH318", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "ZBAD", "arr_iata": "PKX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "888187", "reg_number": "VN-A872", "flag": "VN", "lat": 22.972067, "lng": 87.930344, "alt": 12593, "dir": 122.5, "speed": 956, "v_speed": 0, "flight_number": "980", "flight_icao": "HVN980", "flight_iata": "VN980", "dep_icao": "VIDP", "dep_iata": "DEL", "arr_icao": "VVNB", "arr_iata": "HAN", "airline_icao": "HVN", "airline_iata": "VN", "aircraft_icao": "B78X", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "896319", "reg_number": "A6-ENW", "flag": "AE", "lat": 18.630879, "lng": 71.15611, "alt": 11320, "dir": 123.1, "speed": 909, "v_speed": 0, "flight_number": "542", ....[truncated]
+Dados adaptados com sucesso (formato antigo): { "flight_date": "2025-10-13", "flight_status": "en-route", "departure": { "airport": "KMIA", "timezone": "UTC", "iata": "MIA", "icao": "KMIA", "terminal": "", "gate": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "arrival": { "airport": "MDSD", "timezone": "UTC", "iata": "SDQ", "icao": "MDSD", "terminal": "", "gate": "", "baggage": "", "delay": 0, "scheduled": "", "estimated": "", "actual": "" }, "airline": { "name": "DWI", "iata": "DM", "icao": "DWI" }, "flight": { "number": "2101", "iata": "DM2101", "icao": "DWI2101", "codeshared": null }, "aircraft": { "registration": "HI1098", "iata": "B38M", "icao": "B38M", "icao24": "0C4353" }, "live": { "updated": "2025-10-13T19:39:28.000Z", "latitude": 21.769269, "longitude": -73.45629, "altitude": 11983, "direction": 122.2, "speed_horizontal": 857, "speed_vertical": 0, "is_ground": false } }
+Dados brutos recebidos: { "hex": "8406D0", "flag": "JP", "lat": 34.971075, "lng": 139.913571, "alt": 2875, "dir": 282, "speed": 513, "v_speed": 0, "flight_number": "3", "flight_icao": "JAL3", "flight_iata": "JL3", "dep_icao": "KJFK", "dep_iata": "JFK", "arr_icao": "RJTT", "arr_iata": "HND", "airline_icao": "JAL", "airline_iata": "JL", "aircraft_icao": "A35K", "updated": 1760384367, "status": "en-route", "type": "adsb" }
+Nenhum horário de partida encontrado — usando live.updated como fallback { hex: "39348E", flightIata: "TO3422", dep_iata: "ORY", liveUpdated: "2025-10-13T19:39:27.000Z" }
+✅ Resposta da API (flights): { "success": true, "data": [ { "hex": "A96C0E", "reg_number": "N706NK", "flag": "US", "lat": 22.991407, "lng": -83.688481, "alt": 10688, "dir": 47.7, "speed": 934, "v_speed": 0, "flight_number": "528", "flight_icao": "NKS528", "flight_iata": "NK528", "dep_icao": "MMUN", "dep_iata": "CUN", "arr_icao": "KFLL", "arr_iata": "FLL", "airline_icao": "NKS", "airline_iata": "NK", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "8406D0", "flag": "JP", "lat": 34.971075, "lng": 139.913571, "alt": 2875, "dir": 282, "speed": 513, "v_speed": 0, "flight_number": "3", "flight_icao": "JAL3", "flight_iata": "JL3", "dep_icao": "KJFK", "dep_iata": "JFK", "arr_icao": "RJTT", "arr_iata": "HND", "airline_icao": "JAL", "airline_iata": "JL", "aircraft_icao": "A35K", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "39348E", "reg_number": "F-GNEO", "flag": "FR", "lat": 42.833376, "lng": 23.277894, "alt": 11907, "dir": 113, "speed": 863, "v_speed": 0, "flight_number": "3422", "flight_icao": "TVF3422", "flight_iata": "TO3422", "dep_icao": "LFPO", "dep_iata": "ORY", "arr_icao": "LTFM", "arr_iata": "IST", "airline_icao": "TVF", "airline_iata": "TO", "aircraft_icao": "A20N", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "345686", "reg_number": "EC-MUK", "flag": "ES", "lat": 40.196652, "lng": -2.667426, "alt": 7731, "dir": 119.5, "speed": 796, "v_speed": 0, "flight_number": "1679", "flight_icao": "IBE1679", "flight_iata": "IB1679", "dep_icao": "LEMD", "dep_iata": "MAD", "arr_icao": "LEPA", "arr_iata": "PMI", "airline_icao": "IBS", "airline_iata": "I2", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "8015CB", "reg_number": "VT-IBQ", "flag": "IN", "lat": 19.774322, "lng": 72.75475, "alt": 6740, "dir": 11.3, "speed": 753, "v_speed": 0, "flight_number": "911", "flight_icao": "IGO911", "flight_iata": "6E911", "dep_icao": "VABB", "dep_iata": "BOM", "arr_icao": "VAAH", "arr_iata": "AMD", "airline_icao": "IGO", "airline_iata": "6E", "aircraft_icao": "A21N", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "48C139", "reg_number": "SP-RKQ", "flag": "IE", "lat": 42.021002, "lng": 1.573814, "alt": 8828, "dir": 341.5, "speed": 811, "v_speed": 0, "flight_number": "8215", "flight_icao": "RYR8215", "flight_iata": "FR8215", "dep_icao": "LEBL", "dep_iata": "BCN", "arr_icao": "EGSS", "arr_iata": "STN", "airline_icao": "RYR", "airline_iata": "FR", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "AA56B3", "reg_number": "N76514", "flag": "US", "lat": 42.851611, "lng": -112.61888, "alt": 10992, "dir": 305.6, "speed": 814, "v_speed": 0, "flight_number": "318", "flight_icao": "UAL318", "flight_iata": "UA318", "dep_icao": "KDEN", "dep_iata": "DEN", "arr_icao": "KEUG", "arr_iata": "EUG", "airline_icao": "UAL", "airline_iata": "UA", "aircraft_icao": "B738", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "0C4353", "reg_number": "HI1098", "flag": "DO", "lat": 21.769269, "lng": -73.45629, "alt": 11983, "dir": 122.2, "speed": 857, "v_speed": 0, "flight_number": "2101", "flight_icao": "DWI2101", "flight_iata": "DM2101", "dep_icao": "KMIA", "dep_iata": "MIA", "arr_icao": "MDSD", "arr_iata": "SDQ", "airline_icao": "DWI", "airline_iata": "DM", "aircraft_icao": "B38M", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "0D08E6", "reg_number": "XA-VAA", "flag": "MX", "lat": 23.53133, "lng": -97.950479, "alt": 11907, "dir": 323, "speed": 847, "v_speed": 0, "flight_number": "4395", "flight_icao": "VIV4395", "flight_iata": "VB4395", "dep_icao": "MMVA", "dep_iata": "VSA", "arr_icao": "MMMY", "arr_iata": "MTY", "airline_icao": "VIV", "airline_iata": "VB", "aircraft_icao": "A320", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "AA883E", "reg_number": "N778RH", "flag": "US", "lat": 35.094001, "lng": -89.866204, "alt": 2555, "dir": 187.6, "speed": 468, "v_speed": 0, "flight_number": "3697", "flight_icao": "AAL3697", "flight_iata": "AA3697", "dep_icao": "KORD", "dep_iata": "ORD", "arr_icao": "KMEM", "arr_iata": "MEM", "airline_icao": "ENY", "airline_iata": "MQ", "aircraft_icao": "E170", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "4D23B8", "reg_number": "9H-MLE", "flag": "DE", "lat": 51.331147, "lng": 12.140868, "alt": 8828, "dir": 53, "speed": 855, "v_speed": 0, "flight_number": "2683", "flight_icao": "EWG2683", "flight_iata": "EW2683", "dep_icao": "EDDS", "dep_iata": "STR", "arr_icao": "EDDB", "arr_iata": "BER", "airline_icao": "EWG", "airline_iata": "EW", "aircraft_icao": "A320", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "347645", "reg_number": "EC-OEA", "flag": "ES", "lat": 33.234376, "lng": -11.468996, "alt": 10992, "dir": 38, "speed": 874, "v_speed": 0, "flight_number": "6074", "flight_icao": "IBB6074", "flight_iata": "NT6074", "dep_icao": "GCXO", "dep_iata": "TFN", "arr_icao": "LEMD", "arr_iata": "MAD", "airline_icao": "IBB", "airline_iata": "NT", "aircraft_icao": "E295", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "479301", "reg_number": "LN-WEC", "flag": "NO", "lat": 67.45488, "lng": 14.886508, "alt": 12006, "dir": 30.1, "speed": 724, "v_speed": 0, "flight_number": "630", "flight_icao": "WIF630", "flight_iata": "WF630", "dep_icao": "ENBR", "dep_iata": "BGO", "arr_icao": "ENTC", "arr_iata": "TOS", "airline_icao": "WIF", "airline_iata": "WF", "aircraft_icao": "E290", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750254", "reg_number": "9M-MTA", "flag": "MY", "lat": -36.221299, "lng": 142.244503, "alt": 11381, "dir": 114, "speed": 959, "v_speed": 0, "flight_number": "88", "flight_icao": "MAS88", "flight_iata": "MH88", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJAA", "arr_iata": "NRT", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A339", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750256", "reg_number": "9M-MTC", "flag": "MY", "lat": 26.396259, "lng": 126.741151, "alt": 11907, "dir": 36.3, "speed": 891, "v_speed": 0, "flight_number": "52", "flight_icao": "MAS52", "flight_iata": "MH52", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "RJBB", "arr_iata": "KIX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "750262", "reg_number": "9M-MTO", "flag": "MY", "lat": 24.585848, "lng": 113.426959, "alt": 11937, "dir": 3, "speed": 881, "v_speed": 0, "flight_number": "318", "flight_icao": "MAS318", "flight_iata": "MH318", "dep_icao": "WMKK", "dep_iata": "KUL", "arr_icao": "ZBAD", "arr_iata": "PKX", "airline_icao": "MAS", "airline_iata": "MH", "aircraft_icao": "A333", "updated": 1760384367, "status": "en-route", "type": "adsb" }, { "hex": "888187", "reg_number": "VN-A872", "flag": "VN", "lat": 22.972067, "lng": 87.930344, "alt": 12593, "dir": 122.5, "speed": 956, "v_speed": 0, "flight_number": "980", "flight_icao": "HVN980", "flight_iata": "VN980", "dep_icao": "VIDP", "dep_iata": "DEL", "arr_icao": "VVNB", "arr_iata": "HAN", "airline_icao": "HVN", "airline_iata": "VN", "aircraft_icao": "B78X", "updated": 1760384368, "status": "en-route", "type": "adsb" }, { "hex": "896319", "reg_number": "A6-ENW", "flag": "AE", "lat": 18.630879, "lng": 71.15611, "alt": 11320, "dir": 123.1, "speed": 909, "v_speed": 0, "flight_number": "542", ....[truncated]
+Erro ao salvar horários do aeroporto: { code: "42P10", details: null, hint: null, message: "there is no unique or exclusion constraint matching the ON CONFLICT specification" }
+Parâmetros da requisição: { dep_iata: "SDU" }
+Buscando voos saindo de SDU...
 
 
-*Regras de logging e testes*
+Perfeito, Mayssa 🔍 — deu pra entender bem o que está acontecendo pelos **logs da Supabase**.
 
-* Sempre logar console.warn quando usar fallback live.updated ou quando deixar departureTime = null.
-* Não lançar Error por ausência de horário de partida.
-* Testes:
-
-  1. Caso com departure.scheduled válido -> departure.scheduled no output deve ser o mesmo.
-  2. Caso com scheduled vazio e live.updated presente -> departure.scheduled deve ser live.updated.
-  3. Caso com scheduled vazio e live.updated ausente -> departure.scheduled deve ser null e um console.warn deve ter sido chamado.
-
-*Objetivo final*
-
-* Evitar que getFlightInfo e a Edge Function que chamam transformFlightData quebrem o fluxo do orçamento quando a API devolver voos adsb sem horários.
-* Usar live.updated sempre que possível para preencher horário de partida; caso contrário, continuar com null sem lançar exceção.
+Vamos destrinchar o que aparece aí 👇
 
 ---
 
-Implemente essa mudança no arquivo index.ts dentro de GoFlightLabsService.transformFlightData. Se quiser, eu posso também gerar um diff / patch com a alteração exata no arquivo para você aplicar diretamente.
+### 🧾 O que seus logs mostram
 
-Fim do prompt.
+1. **`INFO Voo internacional detectado: ...`**
+   → A Edge Function está reconhecendo corretamente os voos que vêm da API, incluindo os campos como `dep_iata`, `flightIata`, etc.
+
+2. **`INFO Dados não estão no formato esperado, tentando adaptar...`**
+   → Isso significa que o JSON retornado pela API não segue exatamente o formato que o parser da sua função espera (por exemplo, pode faltar `departure.scheduled` ou os campos estarem em outro nível).
+
+3. **`WARNING Nenhum horário de partida encontrado — usando live.updated como fallback {...}`**
+   → Esse é o aviso adicionado no código depois do tratamento temporário: quando o sistema não encontra `scheduled`, `estimated` nem `actual`, ele usa `live.updated` para não quebrar a execução.
+
+4. **`INFO Dados adaptados com sucesso (formato antigo)`**
+   → A função conseguiu adaptar a estrutura e continuar o fluxo, provavelmente retornando um objeto válido para o front-end.
 
 ---
 
-Quer que eu já gere o trecho de código completo pronto pra colar no index.ts (com typing/linters) ou prefere aplicar esse prompt na tua IA e me dizer o que ela retornar?
+### 🚨 O que isso significa
+
+* A **API do provedor (GoFlightLabs ou equivalente)** não está retornando dados padronizados — principalmente horários.
+* O **sistema está funcionando**, mas **dependendo do fallback (`live.updated`)** que foi implementado para evitar crash.
+* Esse comportamento **não é o previsto pela documentação oficial** — a API deveria retornar ao menos `scheduled` no `departure`.
+
+---
+
+### ✅ O que você pode testar agora
+
+Para seguir “**segundo a documentação**”, você deve procurar **um voo com dados programados (scheduled)**.
+Os voos **reais em rota (live ADS-B)** geralmente **não têm horário programado**, por isso os avisos aparecem.
+
+Teste, por exemplo:
+
+| Companhia  | Número | Rota      | Tipo de voo           |
+| ---------- | ------ | --------- | --------------------- |
+| **LA3543** | LATAM  | GYN → GRU | comercial, programado |
+| **LA3544** | LATAM  | GRU → GYN | comercial, programado |
+
+Esses voos costumam ter `scheduled` preenchido — e se estiverem disponíveis na API, **seus logs não mostrarão o WARNING**.
+
+---
+
+Se quiser, posso te mostrar **como encontrar manualmente o JSON desses voos** pela API GoFlightLabs (ou AviationStack, se for o caso) — assim você pode confirmar se o campo `departure.scheduled` vem ou não.
+Quer que eu te mostre como fazer essa chamada direta?
