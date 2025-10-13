@@ -475,14 +475,14 @@ class GoFlightLabsService {
 
   async getFlightInfo(flightNumber: string, date?: string, airline?: string): Promise<any> {
     try {
-      // Processar o número do voo com mapeamento dinâmico
       const cleanFlightNumber = this.extractFlightNumber(flightNumber);
+      console.log(`Buscando informações do voo: ${flightNumber} (limpo: ${cleanFlightNumber})`);
+      
       // Determinar código da companhia aérea
       const airlineCode = airline ? airline.toUpperCase() : 'LA'; // fallback para LATAM
       
+      // Primeiro, tentar buscar o voo específico
       const params: any = {};
-      
-      // Para buscar voo específico, usar flight_iata ou flight_number
       const targetFlightIata = `${airlineCode}${cleanFlightNumber}`;
       params.flight_iata = targetFlightIata;
       
@@ -501,21 +501,60 @@ class GoFlightLabsService {
         // API retorna array direto
         flightData = response.find(flight => 
           flight.flight_iata === targetFlightIata || 
-          flight.flight_number === cleanFlightNumber
+          flight.flight_number === cleanFlightNumber ||
+          (flight.flight_iata && flight.flight_iata.includes(cleanFlightNumber)) ||
+          (flight.flight_number && flight.flight_number === cleanFlightNumber)
         );
       } else if (response?.data && Array.isArray(response.data)) {
         // API retorna objeto com propriedade data
         flightData = response.data.find(flight => 
           flight.flight_iata === targetFlightIata || 
-          flight.flight_number === cleanFlightNumber
+          flight.flight_number === cleanFlightNumber ||
+          (flight.flight_iata && flight.flight_iata.includes(cleanFlightNumber)) ||
+          (flight.flight_number && flight.flight_number === cleanFlightNumber)
         );
       } else if (response && !Array.isArray(response) && response.flight_iata) {
         // API retorna um único objeto de voo
-        if (response.flight_iata === targetFlightIata || response.flight_number === cleanFlightNumber) {
+        if (response.flight_iata === targetFlightIata || 
+            response.flight_number === cleanFlightNumber ||
+            (response.flight_iata && response.flight_iata.includes(cleanFlightNumber))) {
           flightData = response;
         }
       }
       
+      // Se não encontrou o voo específico, tentar buscar por aeroportos principais
+      if (!flightData) {
+        console.log(`⚠ Voo ${targetFlightIata} não encontrado. Tentando buscar por aeroportos principais...`);
+        
+        // Lista de aeroportos principais do Brasil para buscar voos
+        const mainAirports = ['GRU', 'CGH', 'BSB', 'SDU', 'GIG', 'CNF', 'SSA', 'REC', 'FOR'];
+        
+        for (const airport of mainAirports) {
+          try {
+            console.log(`Buscando voos saindo de ${airport}...`);
+            const airportFlights = await this.getAirportSchedules(airport, 'departure');
+            
+            if (airportFlights && airportFlights.length > 0) {
+              // Procurar o voo específico nos resultados do aeroporto
+              const foundFlight = airportFlights.find(flight => 
+                flight.flightNumber === cleanFlightNumber ||
+                flight.flightNumber === targetFlightIata ||
+                (flight.flightNumber && flight.flightNumber.includes(cleanFlightNumber))
+              );
+              
+              if (foundFlight) {
+                console.log(`✅ Voo ${cleanFlightNumber} encontrado no aeroporto ${airport}`);
+                flightData = foundFlight;
+                break;
+              }
+            }
+          } catch (error) {
+            console.log(`Erro ao buscar no aeroporto ${airport}:`, error);
+            continue;
+          }
+        }
+      }
+
       if (!flightData) {
         console.warn(`⚠ Voo ${targetFlightIata} não encontrado nos resultados`);
         return null;
