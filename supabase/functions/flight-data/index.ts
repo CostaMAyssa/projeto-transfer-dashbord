@@ -136,68 +136,91 @@ class GoFlightLabsService {
   transformFlightData(rawData: any): any {
     console.log('Dados brutos recebidos:', JSON.stringify(rawData, null, 2));
     
-    // Validação mais flexível - apenas campos essenciais
+    // Primeiro, tentar adaptar os dados se ainda não estão no formato esperado
+    let adaptedData = rawData;
     if (!rawData.departure || !rawData.arrival) {
-      console.error('Dados de voo incompletos - falta departure ou arrival:', rawData);
+      console.log('Dados não estão no formato esperado, tentando adaptar...');
+      adaptedData = this.adaptApiResponse(rawData);
+      
+      if (!adaptedData) {
+        console.error('Não foi possível adaptar os dados:', rawData);
+        throw new Error('Formato de dados não suportado');
+      }
+    }
+    
+    // Validação mais flexível - apenas campos essenciais
+    if (!adaptedData.departure || !adaptedData.arrival) {
+      console.error('Dados de voo incompletos - falta departure ou arrival:', adaptedData);
       throw new Error('Dados de voo incompletos - falta informações de partida ou chegada');
     }
     
-    // Verificar se scheduled existe e é válido
-    if (!rawData.departure.scheduled) {
-      console.error('Campo departure.scheduled não encontrado:', rawData.departure);
-      throw new Error('Campo departure.scheduled não encontrado nos dados do voo');
+    // Obter horário de partida de diferentes possíveis campos
+    const departureScheduled = adaptedData.departure.scheduled || 
+                              adaptedData.dep_time || 
+                              adaptedData.dep_scheduled ||
+                              null;
+    
+    if (!departureScheduled) {
+      console.error('Nenhum horário de partida encontrado nos dados:', adaptedData);
+      throw new Error('Horário de partida não encontrado nos dados do voo');
     }
     
     // Validar se a data é válida
-    const departureTime = new Date(rawData.departure.scheduled);
+    const departureTime = new Date(departureScheduled);
     if (isNaN(departureTime.getTime())) {
-      console.error('Data de partida inválida:', rawData.departure.scheduled);
+      console.error('Data de partida inválida:', departureScheduled);
       throw new Error('Data de partida inválida');
     }
     
     // Calcular horário de embarque baseado no tipo de voo
-    const isInternational = this.isInternationalFlight(rawData);
+    const isInternational = this.isInternationalFlight(adaptedData);
     const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
     const boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
     
+    // Obter horário de chegada
+    const arrivalScheduled = adaptedData.arrival.scheduled || 
+                            adaptedData.arr_time || 
+                            adaptedData.arr_scheduled ||
+                            'Unknown';
+    
     return {
-      flightNumber: rawData.flight.iata || rawData.flight.number || 'Unknown',
+      flightNumber: adaptedData.flight?.iata || adaptedData.flight?.number || adaptedData.flight_iata || adaptedData.flight_number || 'Unknown',
       airline: {
-        name: rawData.airline.name || 'Unknown',
-        iata: rawData.airline.iata || 'Unknown',
-        icao: rawData.airline.icao || 'Unknown'
+        name: adaptedData.airline?.name || adaptedData.airline_name || 'Unknown',
+        iata: adaptedData.airline?.iata || adaptedData.airline_iata || 'Unknown',
+        icao: adaptedData.airline?.icao || adaptedData.airline_icao || 'Unknown'
       },
       departure: {
         airport: {
-          name: rawData.departure.airport || 'Unknown',
-          iata: rawData.departure.iata || 'Unknown',
-          icao: rawData.departure.icao || 'Unknown'
+          name: adaptedData.departure?.airport || adaptedData.dep_name || 'Unknown',
+          iata: adaptedData.departure?.iata || adaptedData.dep_iata || 'Unknown',
+          icao: adaptedData.departure?.icao || adaptedData.dep_icao || 'Unknown'
         },
-        terminal: rawData.departure.terminal || null,
-        gate: rawData.departure.gate || null,
-        scheduled: rawData.departure.scheduled,
-        estimated: rawData.departure.estimated || rawData.departure.scheduled,
-        actual: rawData.departure.actual || null,
-        delay: Math.max(0, rawData.departure.delay || 0) // Garantir que delay não seja negativo
+        terminal: adaptedData.departure?.terminal || adaptedData.dep_terminal || null,
+        gate: adaptedData.departure?.gate || adaptedData.dep_gate || null,
+        scheduled: departureScheduled,
+        estimated: adaptedData.departure?.estimated || adaptedData.dep_estimated || departureScheduled,
+        actual: adaptedData.departure?.actual || adaptedData.dep_actual || null,
+        delay: Math.max(0, adaptedData.departure?.delay || adaptedData.dep_delay || 0)
       },
       arrival: {
         airport: {
-          name: rawData.arrival.airport || 'Unknown',
-          iata: rawData.arrival.iata || 'Unknown',
-          icao: rawData.arrival.icao || 'Unknown'
+          name: adaptedData.arrival?.airport || adaptedData.arr_name || 'Unknown',
+          iata: adaptedData.arrival?.iata || adaptedData.arr_iata || 'Unknown',
+          icao: adaptedData.arrival?.icao || adaptedData.arr_icao || 'Unknown'
         },
-        terminal: rawData.arrival.terminal || null,
-        gate: rawData.arrival.gate || null,
-        baggage: rawData.arrival.baggage || null,
-        scheduled: rawData.arrival.scheduled || 'Unknown',
-        estimated: rawData.arrival.estimated || rawData.arrival.scheduled,
-        actual: rawData.arrival.actual || null,
-        delay: Math.max(0, rawData.arrival.delay || 0) // Garantir que delay não seja negativo
+        terminal: adaptedData.arrival?.terminal || adaptedData.arr_terminal || null,
+        gate: adaptedData.arrival?.gate || adaptedData.arr_gate || null,
+        baggage: adaptedData.arrival?.baggage || adaptedData.arr_baggage || null,
+        scheduled: arrivalScheduled,
+        estimated: adaptedData.arrival?.estimated || adaptedData.arr_estimated || arrivalScheduled,
+        actual: adaptedData.arrival?.actual || adaptedData.arr_actual || null,
+        delay: Math.max(0, adaptedData.arrival?.delay || adaptedData.arr_delay || 0)
       },
-      status: rawData.flight_status || 'Unknown',
+      status: adaptedData.flight_status || adaptedData.status || 'Unknown',
       aircraft: {
-        type: rawData.aircraft?.iata || 'N/A',
-        registration: rawData.aircraft?.registration || 'N/A'
+        type: adaptedData.aircraft?.iata || adaptedData.aircraft?.type || adaptedData.aircraft_icao || 'N/A',
+        registration: adaptedData.aircraft?.registration || adaptedData.reg_number || 'N/A'
       },
       suggestedBoardingTime: boardingTime.toISOString()
     };
