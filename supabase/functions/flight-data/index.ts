@@ -480,27 +480,40 @@ class GoFlightLabsService {
       // Determinar código da companhia aérea
       const airlineCode = airline ? airline.toUpperCase() : 'LA'; // fallback para LATAM
       
-      const params: any = { 
-        delay: 0, // buscar qualquer atraso (incluindo 0)
-        type: 'departures' // tipo obrigatório
-      };
+      const params: any = {};
+      
+      // Para buscar voo específico, usar flight_iata ou flight_number
+      const targetFlightIata = `${airlineCode}${cleanFlightNumber}`;
+      params.flight_iata = targetFlightIata;
+      
       if (date) params.date = date;
 
-      const endpoint = 'flight_delays'; // usar endpoint que funciona
-      console.log(`Buscando voo no endpoint /${endpoint}:`, params);
+      const endpoint = 'flights'; // endpoint correto para buscar voos específicos
+      console.log(`Buscando voo ${targetFlightIata} no endpoint /${endpoint}:`, params);
 
       const response = await this.makeRequest(endpoint, params);
-      console.log('Resposta da API (/flight_delays):', JSON.stringify(response, null, 2));
+      console.log('Resposta da API (/flights):', JSON.stringify(response, null, 2));
       
-      // Filtrar o voo específico nos resultados
-      const targetFlightIata = `${airlineCode}${cleanFlightNumber}`;
+      // Processar a resposta - API pode retornar array direto ou objeto com data
       let flightData = null;
       
-      if (response?.data && Array.isArray(response.data)) {
+      if (Array.isArray(response) && response.length > 0) {
+        // API retorna array direto
+        flightData = response.find(flight => 
+          flight.flight_iata === targetFlightIata || 
+          flight.flight_number === cleanFlightNumber
+        );
+      } else if (response?.data && Array.isArray(response.data)) {
+        // API retorna objeto com propriedade data
         flightData = response.data.find(flight => 
           flight.flight_iata === targetFlightIata || 
           flight.flight_number === cleanFlightNumber
         );
+      } else if (response && !Array.isArray(response) && response.flight_iata) {
+        // API retorna um único objeto de voo
+        if (response.flight_iata === targetFlightIata || response.flight_number === cleanFlightNumber) {
+          flightData = response;
+        }
       }
       
       if (!flightData) {
