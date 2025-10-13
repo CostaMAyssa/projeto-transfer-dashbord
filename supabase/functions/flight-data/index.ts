@@ -154,28 +154,55 @@ class GoFlightLabsService {
       throw new Error('Dados de voo incompletos - falta informações de partida ou chegada');
     }
     
-    // Obter horário de partida de diferentes possíveis campos
-    const departureScheduled = adaptedData.departure.scheduled || 
-                              adaptedData.dep_time || 
-                              adaptedData.dep_scheduled ||
-                              null;
+    // Obter informações para logging
+    const hex = adaptedData.hex || adaptedData.aircraft?.icao24 || null;
+    const flightIata = adaptedData.flight_iata || adaptedData.flight?.iata || adaptedData.flight_icao || null;
+    const depIata = adaptedData.dep_iata || adaptedData.departure?.iata || null;
     
+    // Obter horário de partida com prioridade: scheduled -> estimated -> actual
+    const scheduled = adaptedData.departure?.scheduled?.trim() || null;
+    const estimated = adaptedData.departure?.estimated?.trim() || null;
+    const actual = adaptedData.departure?.actual?.trim() || null;
+    
+    let departureScheduled = scheduled || estimated || actual || 
+                            adaptedData.dep_time || 
+                            adaptedData.dep_scheduled ||
+                            null;
+    
+    // Fallback para live.updated quando os horários acima estiverem ausentes/vazios
+    if (!departureScheduled && adaptedData.live?.updated) {
+      console.warn("Nenhum horário de partida encontrado — usando live.updated como fallback", {
+        hex, flightIata, dep_iata: depIata, liveUpdated: adaptedData.live.updated
+      });
+      departureScheduled = adaptedData.live.updated;
+    }
+    
+    // Se ainda não existe, definimos null mas NÃO lançamos erro
     if (!departureScheduled) {
-      console.error('Nenhum horário de partida encontrado nos dados:', adaptedData);
-      throw new Error('Horário de partida não encontrado nos dados do voo');
+      console.warn("Nenhum horário de partida e live.updated ausente; definindo departureTime = null", {
+        hex, flightIata, dep_iata: depIata
+      });
+      departureScheduled = null;
     }
     
-    // Validar se a data é válida
-    const departureTime = new Date(departureScheduled);
-    if (isNaN(departureTime.getTime())) {
-      console.error('Data de partida inválida:', departureScheduled);
-      throw new Error('Data de partida inválida');
+    // Validar se a data é válida (apenas se não for null)
+    let departureTime = null;
+    if (departureScheduled) {
+      departureTime = new Date(departureScheduled);
+      if (isNaN(departureTime.getTime())) {
+        console.warn('Data de partida inválida, definindo como null:', departureScheduled);
+        departureScheduled = null;
+        departureTime = null;
+      }
     }
     
-    // Calcular horário de embarque baseado no tipo de voo
-    const isInternational = this.isInternationalFlight(adaptedData);
-    const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
-    const boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
+    // Calcular horário de embarque baseado no tipo de voo (apenas se departureTime existir)
+    let boardingTime = null;
+    if (departureTime) {
+      const isInternational = this.isInternationalFlight(adaptedData);
+      const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
+      boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
+    }
     
     // Obter horário de chegada
     const arrivalScheduled = adaptedData.arrival.scheduled || 
@@ -222,7 +249,11 @@ class GoFlightLabsService {
         type: adaptedData.aircraft?.iata || adaptedData.aircraft?.type || adaptedData.aircraft_icao || 'N/A',
         registration: adaptedData.aircraft?.registration || adaptedData.reg_number || 'N/A'
       },
-      suggestedBoardingTime: boardingTime.toISOString()
+      suggestedBoardingTime: boardingTime ? boardingTime.toISOString() : null,
+      // Incluir dados live e hex para debugging
+      hex: hex,
+      live: adaptedData.live || null,
+      updated: adaptedData.updated || (adaptedData.live && adaptedData.live.updated) || null
     };
   }
   // Função para adaptar o novo formato de resposta da API para o formato esperado pelo sistema
