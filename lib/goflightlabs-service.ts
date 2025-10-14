@@ -80,48 +80,88 @@ export class GoFlightLabsService {
         date: date || new Date().toISOString().split('T')[0]
       }
 
-      console.log('🚀 Enviando requisição para flight-data:', {
+      console.log('🚀 [SERVICE] Enviando requisição para flight-data:', {
         requestBody,
         supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        timestamp: new Date().toISOString()
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        timestamp: new Date().toISOString(),
+        functionUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/flight-data`
       })
 
       const { data, error } = await this.supabase.functions.invoke('flight-data', {
         body: requestBody
       })
 
-      console.log('📡 Resposta completa da Edge Function:', {
+      console.log('📡 [SERVICE] Resposta completa da Edge Function:', {
         data,
         error,
         hasData: !!data,
         hasError: !!error,
         errorType: error?.constructor?.name,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : null,
         timestamp: new Date().toISOString()
       })
 
+      // Log detalhado dos dados recebidos
+      if (data) {
+        console.log('📊 [SERVICE] Dados detalhados recebidos:', {
+          dataStructure: {
+            hasDataProperty: 'data' in data,
+            hasErrorProperty: 'error' in data,
+            hasMessageProperty: 'message' in data,
+            topLevelKeys: Object.keys(data),
+            dataPropertyType: typeof data.data,
+            dataPropertyValue: data.data
+          },
+          fullDataObject: data
+        })
+      }
+
       // Se há erro, verificar se é 404 (voo não encontrado)
       if (error) {
-        console.log('⚠️ Erro na Edge Function:', {
+        console.log('⚠️ [SERVICE] Erro na Edge Function:', {
           error,
           message: error.message,
           details: error.details,
-          code: error.code
+          code: error.code,
+          errorString: JSON.stringify(error),
+          is404: error.message?.includes('404'),
+          isFlightNotFound: error.details?.includes('Voo não encontrado')
         })
         
         // Se é erro 404, significa que o voo não foi encontrado
         // Isso não é um erro crítico, apenas retorna null
         if (error.message?.includes('404') || error.details?.includes('Voo não encontrado')) {
-          console.log('ℹ️ Voo não encontrado na API externa')
+          console.log('ℹ️ [SERVICE] Voo não encontrado na API externa - retornando null')
           return null
         }
         
         // Para outros erros, lança exceção
+        console.error('💥 [SERVICE] Erro crítico na Edge Function - lançando exceção')
         throw new Error(`Edge Function Error: ${error.message || 'Erro ao buscar informações do voo'}`)
       }
 
-      return data?.data || null
+      // Verificar se os dados estão no formato esperado
+      const flightData = data?.data || null
+      console.log('🔍 [SERVICE] Processando dados de retorno:', {
+        hasFlightData: !!flightData,
+        flightDataType: typeof flightData,
+        isFlightDataObject: flightData && typeof flightData === 'object',
+        flightDataKeys: flightData ? Object.keys(flightData) : null,
+        finalResult: flightData
+      })
+
+      return flightData
     } catch (error) {
-      console.error('Erro na requisição:', error)
+      console.error('💥 [SERVICE] Erro na requisição:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Erro desconhecido',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        errorName: error instanceof Error ? error.name : undefined,
+        errorType: typeof error,
+        timestamp: new Date().toISOString()
+      })
       throw error
     }
   }

@@ -44,7 +44,8 @@ class GoFlightLabsService {
       }
     });
     
-    console.log(`Fazendo requisição para: ${url.toString()}`);
+    console.log(`🌐 Fazendo requisição para: ${url.toString()}`);
+    console.log(`🔑 Usando access_key: ${this.accessKey.substring(0, 20)}...`);
     
     try {
       const response = await fetch(url.toString(), {
@@ -53,6 +54,18 @@ class GoFlightLabsService {
           'Accept': 'application/json',
           'User-Agent': 'Supabase-Edge-Function/1.0'
         }
+      });
+      
+      // Log dos headers de resposta para debugar rate limiting
+      console.log('📊 Headers de resposta:', {
+        status: response.status,
+        statusText: response.statusText,
+        'x-ratelimit-limit': response.headers.get('x-ratelimit-limit'),
+        'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining'),
+        'x-ratelimit-reset': response.headers.get('x-ratelimit-reset'),
+        'retry-after': response.headers.get('retry-after'),
+        'content-type': response.headers.get('content-type'),
+        timestamp: new Date().toISOString()
       });
       
       if (!response.ok) {
@@ -76,6 +89,17 @@ class GoFlightLabsService {
         } else if (response.status === 429) {
           // Extrair informações de rate limit se disponíveis
           const retryAfter = response.headers.get('Retry-After');
+          const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+          const rateLimitReset = response.headers.get('x-ratelimit-reset');
+          
+          console.error('🚫 Rate limit atingido:', {
+            retryAfter,
+            rateLimitRemaining,
+            rateLimitReset,
+            endpoint,
+            accessKeyPrefix: this.accessKey.substring(0, 20) + '...'
+          });
+          
           const rateLimitInfo = retryAfter ? ` Aguarde ${retryAfter} segundos.` : '';
           throw new Error(`Limite de requisições excedido.${rateLimitInfo} Considere implementar cache ou reduzir frequência de chamadas.`);
         } else if (response.status >= 500) {
@@ -164,10 +188,7 @@ class GoFlightLabsService {
     const estimated = adaptedData.departure?.estimated?.trim() || null;
     const actual = adaptedData.departure?.actual?.trim() || null;
     
-    let departureScheduled = scheduled || estimated || actual || 
-                            adaptedData.dep_time || 
-                            adaptedData.dep_scheduled ||
-                            null;
+    let departureScheduled = scheduled || estimated || actual || null;
     
     // Fallback para live.updated quando os horários acima estiverem ausentes/vazios
     if (!departureScheduled && adaptedData.live?.updated) {
@@ -187,21 +208,20 @@ class GoFlightLabsService {
     
     // Validar se a data é válida (apenas se não for null)
     let departureTime = null;
+    let boardingTime = null;
+    
     if (departureScheduled) {
       departureTime = new Date(departureScheduled);
       if (isNaN(departureTime.getTime())) {
         console.warn('Data de partida inválida, definindo como null:', departureScheduled);
-        departureScheduled = null;
         departureTime = null;
+        departureScheduled = null;
+      } else {
+        // Calcular horário de embarque baseado no tipo de voo (apenas se departureTime válido)
+        const isInternational = this.isInternationalFlight(adaptedData);
+        const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
+        boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
       }
-    }
-    
-    // Calcular horário de embarque baseado no tipo de voo (apenas se departureTime existir)
-    let boardingTime = null;
-    if (departureTime) {
-      const isInternational = this.isInternationalFlight(adaptedData);
-      const boardingMinutes = isInternational ? 90 : 60; // 1.5h para internacional, 1h para doméstico
-      boardingTime = new Date(departureTime.getTime() - boardingMinutes * 60 * 1000);
     }
     
     // Obter horário de chegada
@@ -249,11 +269,7 @@ class GoFlightLabsService {
         type: adaptedData.aircraft?.iata || adaptedData.aircraft?.type || adaptedData.aircraft_icao || 'N/A',
         registration: adaptedData.aircraft?.registration || adaptedData.reg_number || 'N/A'
       },
-      suggestedBoardingTime: boardingTime ? boardingTime.toISOString() : null,
-      // Incluir dados live e hex para debugging
-      hex: hex,
-      live: adaptedData.live || null,
-      updated: adaptedData.updated || (adaptedData.live && adaptedData.live.updated) || null
+      suggestedBoardingTime: boardingTime ? boardingTime.toISOString() : null
     };
   }
   // Função para adaptar o novo formato de resposta da API para o formato esperado pelo sistema
@@ -898,12 +914,23 @@ serve(async (req: Request)=>{
     const accessKey = Deno.env.get('GOFLIGHTLABS_ACCESS_KEY');
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    console.log('🔑 Verificando configuração da API:', {
+      hasAccessKey: !!accessKey,
+      accessKeyLength: accessKey?.length,
+      accessKeyPrefix: accessKey?.substring(0, 20) + '...',
+      hasSupabaseUrl: !!supabaseUrl,
+      hasSupabaseServiceKey: !!supabaseServiceKey,
+      timestamp: new Date().toISOString()
+    });
+    
     if (!accessKey) {
       throw new Error('GOFLIGHTLABS_ACCESS_KEY não configurada');
     }
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Variáveis do Supabase não configuradas');
     }
+
     const flightService = new GoFlightLabsService(accessKey, supabaseUrl, supabaseServiceKey);
     if (method === 'GET' || method === 'POST') {
       let flightNumber, airportIata, scheduleType, date, airline;

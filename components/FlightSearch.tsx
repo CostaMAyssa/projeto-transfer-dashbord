@@ -115,6 +115,47 @@ export default function FlightSearch({
     }
   }
 
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) return
+    
+    console.log('🔍 [COMPONENT] Iniciando busca de voo:', {
+      searchTerm: searchTerm.trim(),
+      timestamp: new Date().toISOString(),
+      componentState: {
+        isLoading,
+        hasFlightData: !!flightData,
+        hasError: !!error,
+        searchResultsCount: searchResults.length
+      }
+    })
+    
+    try {
+      await searchFlight(searchTerm.trim())
+      console.log('✅ [COMPONENT] Busca concluída com sucesso')
+    } catch (err) {
+      console.error('❌ [COMPONENT] Erro na busca:', {
+        error: err,
+        errorMessage: err instanceof Error ? err.message : 'Erro desconhecido',
+        searchTerm: searchTerm.trim(),
+        timestamp: new Date().toISOString()
+      })
+    }
+  }
+
+  const handleFlightSelect = (flight: FlightSearchResult) => {
+    console.log('✈️ [COMPONENT] Voo selecionado:', {
+      flight,
+      flightNumber: flight.flight_number,
+      airline: flight.airline,
+      hasFlightData: !!flightData,
+      timestamp: new Date().toISOString()
+    })
+    
+    setSelectedFlight(flight)
+    setSearchTerm(flight.flight_number)
+    setShowSuggestions(false)
+  }
+
   return (
     <div className={`relative ${className}`}>
       <div className="relative">
@@ -258,3 +299,22 @@ export default function FlightSearch({
     </div>
   )
 }
+
+  // Log do estado atual do componente sempre que houver mudanças
+  useEffect(() => {
+    console.log('🔄 [COMPONENT] Estado atualizado:', {
+      hasFlightData: !!flightData,
+      flightDataKeys: flightData ? Object.keys(flightData) : null,
+      flightNumber: flightData?.flight_number,
+      airline: flightData?.airline,
+      status: flightData?.status,
+      isLoading,
+      hasError: !!error,
+      errorMessage: error,
+      searchResultsCount: searchResults.length,
+      hasSelectedFlight: !!selectedFlight,
+      selectedFlightNumber: selectedFlight?.flight_number,
+      searchTerm,
+      timestamp: new Date().toISOString()
+    })
+  }, [flightData, isLoading, error, searchResults, selectedFlight, searchTerm])

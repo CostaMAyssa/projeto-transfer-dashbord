@@ -102,10 +102,12 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
 
   // Buscar voo específico
   const searchFlight = useCallback(async (flightNumber: string, date: string, airline?: string): Promise<FlightData | null> => {
-    console.log('🔍 Iniciando busca de voo:', {
+    console.log('🔍 [FRONTEND] Iniciando busca de voo:', {
       flightNumber,
       date,
-      timestamp: new Date().toISOString()
+      airline,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent
     })
     
     setLoading(true)
@@ -114,25 +116,46 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
     setSmartScheduling(null)
     
     try {
-      console.log('📞 Chamando goFlightLabsService.getFlightInfo...')
+      console.log('📞 [FRONTEND] Chamando goFlightLabsService.getFlightInfo...')
+      console.log('🌐 [FRONTEND] Configuração do ambiente:', {
+        supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        hasAnonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        nodeEnv: process.env.NODE_ENV
+      })
+      
       const flight = await goFlightLabsService.getFlightInfo(flightNumber, date, airline)
       
-      console.log('✅ Resposta recebida do serviço:', {
+      console.log('✅ [FRONTEND] Resposta recebida do serviço:', {
         hasFlight: !!flight,
         flightData: flight ? {
           flightNumber: flight.flightNumber,
           status: flight.status,
-          departure: flight.departure?.scheduled,
-          arrival: flight.arrival?.scheduled
-        } : null
+          airline: flight.airline,
+          departure: {
+            airport: flight.departure?.airport,
+            scheduled: flight.departure?.scheduled,
+            estimated: flight.departure?.estimated,
+            actual: flight.departure?.actual
+          },
+          arrival: {
+            airport: flight.arrival?.airport,
+            scheduled: flight.arrival?.scheduled,
+            estimated: flight.arrival?.estimated,
+            actual: flight.arrival?.actual
+          }
+        } : null,
+        rawFlightObject: flight
       })
       
       if (flight) {
+        console.log('🎯 [FRONTEND] Voo encontrado - processando dados...')
         setFlightData(flight)
         setLastSearchParams({ flightNumber, date })
         
         // Verificar alertas automaticamente
+        console.log('⚠️ [FRONTEND] Verificando alertas do voo...')
         const flightAlerts = await checkFlightDivergence(flight)
+        console.log('📋 [FRONTEND] Alertas encontrados:', flightAlerts)
         setAlerts(flightAlerts)
         
         // Adicionar aos resultados de busca
@@ -147,27 +170,39 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
           return [result, ...filtered].slice(0, 10) // Manter apenas os 10 mais recentes
         })
         
+        console.log('✅ [FRONTEND] Voo processado com sucesso!')
         return flight
       } else {
-        console.log('⚠️ Voo não encontrado')
+        console.log('⚠️ [FRONTEND] Voo não encontrado - retornando null')
         setError(`Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`)
         return null
       }
     } catch (err) {
-      console.error('❌ Erro detalhado na busca de voo:', {
+      console.error('❌ [FRONTEND] Erro detalhado na busca de voo:', {
         error: err,
         message: err instanceof Error ? err.message : 'Erro desconhecido',
         stack: err instanceof Error ? err.stack : undefined,
         name: err instanceof Error ? err.name : undefined,
         flightNumber,
         date,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        errorType: typeof err,
+        errorConstructor: err?.constructor?.name
       })
       
       // Tratar diferentes tipos de erro com mensagens mais específicas
       let errorMessage = 'Erro ao buscar voo'
       
       if (err instanceof Error) {
+        console.log('🔍 [FRONTEND] Analisando tipo de erro:', {
+          errorName: err.name,
+          errorMessage: err.message,
+          isFlightNotFound: err.name === 'FlightNotFoundError',
+          isNoData: err.name === 'NoDataError',
+          isInvalidFormat: err.name === 'InvalidDataFormatError',
+          isFlightSearchError: err.name === 'FlightSearchError'
+        })
+        
         if (err.name === 'FlightNotFoundError') {
           errorMessage = `Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`
         } else if (err.name === 'NoDataError') {
@@ -181,11 +216,12 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         }
       }
       
+      console.log('📝 [FRONTEND] Mensagem de erro final:', errorMessage)
       setError(errorMessage)
       return null
     } finally {
       setLoading(false)
-      console.log('🏁 Busca de voo finalizada')
+      console.log('🏁 [FRONTEND] Busca de voo finalizada')
     }
   }, [])
 
