@@ -1330,13 +1330,13 @@ export default function NewQuotePage() {
                             </div>
                           )}
                           {flightError && !isLoadingFlight && formData.flight_number && (
-                            <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                            <div className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
                               <div className="flex items-start space-x-2">
-                                <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
+                                <AlertCircle className="w-4 h-4 text-gray-600 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
-                                  <p className="text-sm font-medium text-red-800">Erro ao buscar voo</p>
-                                  <p className="text-sm text-red-700 mt-1">{flightError}</p>
-                                  <div className="mt-2 text-xs text-red-600">
+                                  <p className="text-sm font-medium text-gray-800">Não foi possível buscar o voo</p>
+                                  <p className="text-sm text-gray-700 mt-1">{flightError}</p>
+                                  <div className="mt-2 text-xs text-gray-600">
                                     <p>• Verifique se o número do voo está correto</p>
                                     <p>• Confirme se a data está correta</p>
                                     <p>• Tente novamente em alguns minutos</p>

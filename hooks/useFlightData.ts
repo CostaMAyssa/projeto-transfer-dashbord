@@ -174,7 +174,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         return flight
       } else {
         console.log('⚠️ [FRONTEND] Voo não encontrado - retornando null')
-        setError(`Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`)
+        setError(`Voo ${flightNumber} não encontrado para a data ${date}. Verifique se o voo existe nesta data.`)
         return null
       }
     } catch (err) {
@@ -191,7 +191,7 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
       })
       
       // Tratar diferentes tipos de erro com mensagens mais específicas
-      let errorMessage = 'Erro ao buscar voo'
+      let errorMessage = 'Não foi possível buscar informações do voo'
       
       if (err instanceof Error) {
         console.log('🔍 [FRONTEND] Analisando tipo de erro:', {
@@ -204,15 +204,33 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         })
         
         if (err.name === 'FlightNotFoundError') {
-          errorMessage = `Voo ${flightNumber} não encontrado na data ${date}. Verifique se o voo existe nesta data.`
+          errorMessage = `Voo ${flightNumber} não encontrado para a data ${date}. Verifique se o número do voo e a data estão corretos.`
         } else if (err.name === 'NoDataError') {
-          errorMessage = `Nenhum dado encontrado para o voo ${flightNumber}. Verifique se o número do voo está correto.`
+          errorMessage = `Não foi possível encontrar dados para o voo ${flightNumber}. Verifique se o número do voo está correto.`
         } else if (err.name === 'InvalidDataFormatError') {
-          errorMessage = `Dados do voo ${flightNumber} estão em formato inválido. Tente novamente mais tarde.`
+          errorMessage = `Os dados do voo ${flightNumber} estão em formato inválido. Tente novamente mais tarde.`
         } else if (err.name === 'FlightSearchError') {
-          errorMessage = err.message
+          // Personalizar mensagens baseadas no conteúdo do erro
+          if (err.message.includes('429') || err.message.includes('Too Many Requests') || err.message.includes('limite de requisições')) {
+            errorMessage = 'Muitas consultas foram feitas recentemente. Aguarde alguns minutos e tente novamente.'
+          } else if (err.message.includes('401') || err.message.includes('Unauthorized')) {
+            errorMessage = 'Erro de autenticação no serviço de voos. Tente novamente mais tarde.'
+          } else if (err.message.includes('404') || err.message.includes('Not Found')) {
+            errorMessage = `Voo ${flightNumber} não encontrado para a data ${date}. Verifique se as informações estão corretas.`
+          } else if (err.message.includes('500') || err.message.includes('Internal Server Error')) {
+            errorMessage = 'Erro interno no serviço de voos. Tente novamente em alguns minutos.'
+          } else {
+            errorMessage = 'Erro temporário no serviço de voos. Tente novamente em alguns minutos.'
+          }
         } else {
-          errorMessage = err.message
+          // Para outros erros, usar uma mensagem mais amigável
+          if (err.message.includes('fetch')) {
+            errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.'
+          } else if (err.message.includes('timeout')) {
+            errorMessage = 'A consulta demorou muito para responder. Tente novamente.'
+          } else {
+            errorMessage = 'Erro temporário no serviço de voos. Tente novamente em alguns minutos.'
+          }
         }
       }
       
@@ -244,10 +262,14 @@ export function useFlightData(options: UseFlightDataOptions = {}): UseFlightData
         return flight
       }
       
-      setError('Não foi possível obter status em tempo real')
+      setError('Não foi possível obter informações em tempo real do voo')
       return null
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar status em tempo real'
+      const errorMessage = err instanceof Error ? 
+        (err.message.includes('429') || err.message.includes('Too Many Requests') ? 
+          'Muitas consultas foram feitas recentemente. Aguarde alguns minutos e tente novamente.' :
+          'Erro temporário ao buscar informações em tempo real do voo') : 
+        'Erro temporário ao buscar informações em tempo real do voo'
       setError(errorMessage)
       return null
     } finally {

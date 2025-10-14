@@ -139,7 +139,7 @@ export class GoFlightLabsService {
         
         // Para outros erros, lança exceção
         console.error('💥 [SERVICE] Erro crítico na Edge Function - lançando exceção')
-        throw new Error(`Edge Function Error: ${error.message || 'Erro ao buscar informações do voo'}`)
+        throw new Error('Serviço temporariamente indisponível. Tente novamente em alguns minutos.')
       }
 
       // Verificar se os dados estão no formato esperado
