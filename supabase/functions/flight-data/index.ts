@@ -44,6 +44,7 @@ class GoFlightLabsService {
       }
     });
     
+    console.log(`[DEBUG] URL enviada: ${url.toString()}`);
     console.log(`🌐 Fazendo requisição para: ${url.toString()}`);
     console.log(`🔑 Usando access_key: ${this.accessKey.substring(0, 20)}...`);
     
