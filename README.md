@@ -69,6 +69,11 @@ O AZ Transfer Dashboard é uma solução completa para gestão de empresa de tra
 - **Middleware** - Roteamento internacionalizado
 - **PWA** - Progressive Web App
 
+## 🔐 Acessos Internos
+
+- Permissões de colaboração no GitHub já foram liberadas após a transferência do repositório; verifique convites pendentes se necessário.
+- Credenciais operacionais (Supabase, VPS, Stripe, etc.) estão documentadas em `docs/credenciais.md`. Mantenha o arquivo seguro e rotacione senhas periodicamente.
+
 ## 📊 Estrutura do Banco de Dados
 
 ```sql
